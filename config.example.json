@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "active_node": "example-trojan-jp",
+  "subscription_url": "https://example.com/subscription/YOUR_SUB_TOKEN",
+  "subscription_updated": "2026-11-18 00:00:00",
+  "nodes": [
+    {
+      "id": "example-trojan-jp",
+      "name": "日本-示例节点-:1.0",
+      "type": "trojan",
+      "server": "jp-example.domain.com",
+      "server_port": 443,
+      "password": "YOUR_PASSWORD_HERE",
+      "tls_sni": "jp-example.domain.com",
+      "tls_insecure": false,
+      "flag": "🇯🇵",
+      "source": "subscription",
+      "added_at": "2026-11-18T00:00:00+09:00"
+    }
+  ]
+}

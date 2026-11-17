@@ -1,0 +1,49 @@
+{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "work-in",
+      "listen": "10.203.0.1",
+      "listen_port": 17890
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "trojan",
+      "tag": "trojan-out",
+      "server": "1.2.3.4",
+      "server_port": 443,
+      "password": "YOUR_PASSWORD_HERE",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.com",
+        "insecure": false
+      }
+    }
+  ],
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "remote-dns",
+        "server": "1.1.1.1",
+        "server_port": 443,
+        "path": "/dns-query",
+        "tls": {
+          "enabled": true,
+          "server_name": "cloudflare-dns.com"
+        },
+        "detour": "trojan-out"
+      }
+    ],
+    "final": "remote-dns"
+  },
+  "route": {
+    "default_domain_resolver": "remote-dns",
+    "final": "trojan-out"
+  }
+}
