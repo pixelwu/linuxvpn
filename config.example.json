@@ -1,8 +1,22 @@
 {
-  "version": 1,
+  "version": 2,
   "active_node": "example-trojan-jp",
-  "subscription_url": "https://example.com/subscription/YOUR_SUB_TOKEN",
-  "subscription_updated": "2026-11-18 00:00:00",
+  "subscriptions": [
+    {
+      "id": "sub-1",
+      "name": "订阅1",
+      "url": "https://example.com/subscription/YOUR_SUB_TOKEN_1",
+      "filter": "日本",
+      "updated_at": "2026-11-18 00:00:00"
+    },
+    {
+      "id": "sub-2",
+      "name": "订阅2",
+      "url": "https://example.com/subscription/YOUR_SUB_TOKEN_2",
+      "filter": "日本",
+      "updated_at": "2026-11-18 00:00:00"
+    }
+  ],
   "nodes": [
     {
       "id": "example-trojan-jp",
@@ -14,7 +28,7 @@
       "tls_sni": "jp-example.domain.com",
       "tls_insecure": false,
       "flag": "🇯🇵",
-      "source": "subscription",
+      "source": "sub-1",
       "added_at": "2026-11-18T00:00:00+09:00"
     }
   ]

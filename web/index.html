@@ -123,39 +123,95 @@
     align-items: center;
     gap: 8px;
   }
-  .sub-url-row {
+
+  /* Subscription list */
+  .sub-list { list-style: none; margin-bottom: 10px; }
+  .sub-list-item {
     display: flex;
+    align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
-  }
-  .sub-url-input {
-    flex: 1;
-    padding: 7px 10px;
+    padding: 8px 10px;
     background: var(--input-bg);
     border: 1px solid var(--border);
     border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .sub-list-item .sub-name {
+    font-weight: 600;
     color: var(--text);
-    font-size: 11px;
-    font-family: "SF Mono", monospace;
-    outline: none;
-    -webkit-app-region: no-drag;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .sub-url-input:focus { border-color: var(--primary); }
-  .sub-info {
-    font-size: 11px;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .sub-info .sub-badge {
+  .sub-list-item .sub-meta {
+    flex: 1;
+    text-align: right;
     font-size: 10px;
-    padding: 2px 8px;
+    color: var(--text-muted);
+    font-family: "SF Mono", monospace;
+    white-space: nowrap;
+  }
+  .sub-list-item .sub-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .sub-list-item .sub-node-count {
+    font-size: 10px;
+    padding: 2px 6px;
     border-radius: 6px;
     background: rgba(41,182,246,0.15);
     color: var(--sub-color);
     font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
+  .btn-icon {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    -webkit-app-region: no-drag;
+    line-height: 1;
+  }
+  .btn-icon:hover { background: rgba(255,255,255,0.08); }
+  .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Add subscription form */
+  .add-sub-form {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: none;
+  }
+  .add-sub-form.open { display: block; }
+  .add-sub-form .form-row { margin-bottom: 8px; }
+  .add-sub-form .form-row label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+  }
+  .add-sub-form .form-row input {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: "SF Mono", monospace;
+    outline: none;
+    -webkit-app-region: no-drag;
+  }
+  .add-sub-form .form-row input:focus { border-color: var(--primary); }
 
   /* Node list */
   .section-title {
@@ -174,6 +230,55 @@
   }
 
   .node-list { list-style: none; }
+
+  /* Node group */
+  .node-group {
+    margin-bottom: 12px;
+  }
+  .node-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    transition: background 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .node-group-header:hover { background: rgba(255,255,255,0.03); }
+  .node-group-header .group-chevron {
+    font-size: 10px;
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  .node-group-header.collapsed .group-chevron {
+    transform: rotate(-90deg);
+  }
+  .node-group-header .group-count {
+    font-weight: 400;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .node-group-body {
+    padding-left: 8px;
+    border-left: 2px solid var(--border);
+    margin-left: 6px;
+  }
+  .node-group-body.collapsed {
+    display: none;
+  }
+  .node-group[data-type="manual"] > .node-group-body {
+    border-left-color: var(--accent);
+  }
+  .node-group[data-type="subscription"] > .node-group-body {
+    border-left-color: var(--sub-color);
+  }
+
   .node-item {
     background: var(--card);
     border: 1px solid var(--border);
@@ -191,7 +296,7 @@
   .node-item .flag { font-size: 22px; flex-shrink: 0; }
   .node-info { flex: 1; min-width: 0; }
   .node-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .node-detail { font-size: 11px; color: var(--text-muted); font-family: "SF Mono", monospace; margin-top: 2px; }
+  .node-detail { font-size: 11px; color: var(--text-muted); font-family: "SF Mono", monospace; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
   .node-badges { display: flex; gap: 4px; flex-shrink: 0; }
   .node-type {
     font-size: 10px;
@@ -215,7 +320,22 @@
     display: flex;
     gap: 6px;
     flex-shrink: 0;
+    align-items: center;
   }
+
+  /* Latency badge */
+  .latency-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-family: "SF Mono", monospace;
+    flex-shrink: 0;
+  }
+  .latency-good { background: rgba(102,187,106,0.15); color: #66bb6a; }
+  .latency-ok { background: rgba(255,167,38,0.15); color: #ffa726; }
+  .latency-bad { background: rgba(239,83,80,0.15); color: #ef5350; }
+  .latency-timeout { background: rgba(136,153,170,0.15); color: #8899aa; }
 
   /* Buttons */
   .btn {
@@ -348,28 +468,46 @@
     </div>
   </div>
 
-  <!-- Subscription Card -->
+  <!-- Subscription Card (Multi-subscription) -->
   <div class="sub-card">
     <div class="sub-header">
       <h3>📡 订阅管理</h3>
-      <span class="sub-info">
-        <span id="subStatus"></span>
-      </span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-sub" onclick="updateAllSubscriptions()" id="btnUpdateAllSub">🔄 全部更新</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleAddSubForm()">➕ 添加订阅</button>
+      </div>
     </div>
-    <div class="sub-url-row">
-      <input type="text" class="sub-url-input" id="subUrl" placeholder="粘贴订阅地址..." />
-      <button class="btn btn-sm btn-ghost" onclick="saveSubscriptionUrl()" id="btnSaveSub">💾</button>
+
+    <!-- Add subscription form -->
+    <div class="add-sub-form" id="addSubForm">
+      <div class="form-row">
+        <label>名称</label>
+        <input type="text" id="fSubName" placeholder="例如: TrojanFlare">
+      </div>
+      <div class="form-row">
+        <label>订阅地址</label>
+        <input type="text" id="fSubUrl" placeholder="https://...">
+      </div>
+      <div class="form-row">
+        <label>过滤关键词</label>
+        <input type="text" id="fSubFilter" placeholder="日本" value="日本">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-sm btn-primary" onclick="addSubscription()">添加</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleAddSubForm()">取消</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-sm btn-sub" onclick="updateSubscription()" id="btnUpdateSub">🔄 更新订阅 (日本节点)</button>
-      <span class="sub-info" id="subLastUpdate"></span>
-    </div>
+
+    <!-- Subscription list -->
+    <ul class="sub-list" id="subList"></ul>
+    <div class="sub-info" id="subSummary" style="font-size:11px;color:var(--text-muted)"></div>
   </div>
 
   <!-- Node List -->
   <div class="section-title">
     <span>📋 节点列表 <span class="node-count" id="nodeCount"></span></span>
     <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-ghost" onclick="pingAllNodes()" id="btnPingAll">⚡ 全部测速</button>
       <button class="btn btn-sm btn-ghost" onclick="toggleAddForm()">➕ 手动添加</button>
     </div>
   </div>
@@ -421,7 +559,7 @@
     </div>
   </div>
 
-  <ul class="node-list" id="nodeList"></ul>
+  <div id="nodeList"></div>
 
   <!-- Log output -->
   <div class="log-area" id="logArea">就绪。\n</div>
@@ -434,14 +572,8 @@
 // ─── Globals ───
 let config = null;
 let isOperating = false;
-
-// ─── Security: HTML escaping to prevent XSS ───
-function escapeHtml(str) {
-  if (typeof str !== 'string') return String(str);
-  const div = document.createElement('div');
-  div.appendChild(document.createTextNode(str));
-  return div.innerHTML;
-}
+let latencyData = {}; // nodeId -> { latency_ms: number }
+let collapsedGroups = {}; // groupKey -> boolean
 
 // ─── Security: Sanitize for shell arguments ───
 function shellEscape(str) {
@@ -493,15 +625,30 @@ async function loadConfig() {
         const text = await resp.text();
         config = JSON.parse(text);
       } catch(e) {
-        config = {version:1, active_node:null, nodes:[], subscription_url:'', subscription_updated:''};
+        config = {version:1, active_node:null, nodes:[], subscriptions:[]};
       }
     }
   } catch(e) {
     appendLog('⚠️ 加载配置失败: ' + e.message);
-    config = {version:1, active_node:null, nodes:[], subscription_url:'', subscription_updated:''};
+    config = {version:1, active_node:null, nodes:[], subscriptions:[]};
   }
+  // Normalize: ensure subscriptions array exists
+  if (!config.subscriptions) {
+    config.subscriptions = [];
+    // Migrate legacy single subscription if present
+    if (config.subscription_url) {
+      config.subscriptions.push({
+        id: 'sub-legacy',
+        name: '订阅',
+        url: config.subscription_url,
+        filter: '日本',
+        updated_at: config.subscription_updated || ''
+      });
+    }
+  }
+  if (!config.nodes) config.nodes = [];
   renderNodes();
-  renderSubscriptionInfo();
+  renderSubscriptions();
 }
 
 // ─── Execute CLI command (safe) ───
@@ -523,120 +670,404 @@ async function runCommand(cmd, timeoutMs = 60000) {
   }
 }
 
-// ─── Render node list (XSS-safe) ───
-function renderNodes() {
+// ─── Helper: get subscription name by id ───
+function getSubName(subId) {
+  if (!config || !config.subscriptions) return subId;
+  const sub = config.subscriptions.find(s => s.id === subId);
+  return sub ? sub.name : subId;
+}
+
+// ─── Helper: count nodes for a source ───
+function countNodesForSource(source) {
+  if (!config) return 0;
+  return config.nodes.filter(n => n.source === source).length;
+}
+
+// ─── Render subscriptions ───
+function renderSubscriptions() {
   if (!config) return;
-  const list = document.getElementById('nodeList');
+  const list = document.getElementById('subList');
   list.innerHTML = '';
 
-  const count = document.getElementById('nodeCount');
-  count.textContent = '(' + config.nodes.length + ')';
+  const subs = config.subscriptions || [];
+  const summary = document.getElementById('subSummary');
 
-  config.nodes.forEach(node => {
-    const isActive = config.active_node === node.id;
+  if (subs.length === 0) {
+    summary.textContent = '暂无订阅，点击"➕ 添加订阅"开始';
+    return;
+  }
+
+  const totalSubNodes = config.nodes.filter(n => n.source && n.source !== 'manual').length;
+  summary.textContent = subs.length + ' 个订阅 · ' + totalSubNodes + ' 个节点';
+
+  subs.forEach(sub => {
+    const nodeCount = countNodesForSource(sub.id);
     const li = document.createElement('li');
-    li.className = 'node-item' + (isActive ? ' active' : '');
+    li.className = 'sub-list-item';
 
-    // Build DOM elements safely (no innerHTML with user data)
-    const flagSpan = document.createElement('span');
-    flagSpan.className = 'flag';
-    flagSpan.textContent = node.flag || '🌐';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sub-name';
+    nameSpan.textContent = sub.name || sub.id;
 
-    const infoDiv = document.createElement('div');
-    infoDiv.className = 'node-info';
+    const countSpan = document.createElement('span');
+    countSpan.className = 'sub-node-count';
+    countSpan.textContent = nodeCount + ' 节点';
 
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'node-name';
-    nameDiv.textContent = (isActive ? '▶ ' : '') + (node.name || node.id);
-
-    const detailDiv = document.createElement('div');
-    detailDiv.className = 'node-detail';
-    detailDiv.textContent = node.server + ':' + node.server_port;
-
-    infoDiv.appendChild(nameDiv);
-    infoDiv.appendChild(detailDiv);
-
-    // Badges
-    const badgesDiv = document.createElement('div');
-    badgesDiv.className = 'node-badges';
-    badgesDiv.style.cssText = 'display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0';
-
-    const typeSpan = document.createElement('span');
-    typeSpan.className = 'node-type';
-    typeSpan.textContent = node.type;
-    badgesDiv.appendChild(typeSpan);
-
-    if (node.source === 'subscription') {
-      const srcSpan = document.createElement('span');
-      srcSpan.className = 'node-source-badge';
-      srcSpan.textContent = '📡 订阅';
-      badgesDiv.appendChild(srcSpan);
-    }
-
-    // Actions
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'node-actions';
-
-    if (isActive) {
-      const activeSpan = document.createElement('span');
-      activeSpan.style.cssText = 'color:var(--success);font-size:11px;white-space:nowrap';
-      activeSpan.textContent = '使用中';
-      actionsDiv.appendChild(activeSpan);
+    const metaSpan = document.createElement('span');
+    metaSpan.className = 'sub-meta';
+    if (sub.updated_at) {
+      metaSpan.textContent = sub.updated_at;
     } else {
-      const switchBtn = document.createElement('button');
-      switchBtn.className = 'btn btn-switch';
-      switchBtn.textContent = '切换';
-      switchBtn.disabled = isOperating;
-      // Safe: use data attribute, not string interpolation
-      switchBtn.dataset.nodeId = node.id;
-      switchBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        switchNode(e.currentTarget.dataset.nodeId);
-      });
-      actionsDiv.appendChild(switchBtn);
+      metaSpan.textContent = '未更新';
     }
+    if (sub.filter) {
+      metaSpan.textContent += ' · 🔍 ' + sub.filter;
+    }
+
+    const actionsDiv = document.createElement('span');
+    actionsDiv.className = 'sub-actions';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'btn-icon';
+    updateBtn.textContent = '🔄';
+    updateBtn.title = '更新此订阅';
+    updateBtn.disabled = isOperating;
+    updateBtn.dataset.subId = sub.id;
+    updateBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      updateOneSubscription(e.currentTarget.dataset.subId);
+    });
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-danger';
-    deleteBtn.textContent = '✕';
+    deleteBtn.className = 'btn-icon';
+    deleteBtn.textContent = '🗑';
+    deleteBtn.title = '删除订阅';
     deleteBtn.disabled = isOperating;
-    deleteBtn.dataset.nodeId = node.id;
-    deleteBtn.dataset.nodeName = node.name || node.id;
+    deleteBtn.dataset.subId = sub.id;
+    deleteBtn.dataset.subName = sub.name || sub.id;
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      deleteNode(e.currentTarget.dataset.nodeId, e.currentTarget.dataset.nodeName);
+      removeSubscription(e.currentTarget.dataset.subId, e.currentTarget.dataset.subName);
     });
+
+    actionsDiv.appendChild(updateBtn);
     actionsDiv.appendChild(deleteBtn);
 
-    li.appendChild(flagSpan);
-    li.appendChild(infoDiv);
-    li.appendChild(badgesDiv);
+    li.appendChild(nameSpan);
+    li.appendChild(countSpan);
+    li.appendChild(metaSpan);
     li.appendChild(actionsDiv);
     list.appendChild(li);
   });
 }
 
-// ─── Render subscription info ───
-function renderSubscriptionInfo() {
+// ─── Render node list with groups (XSS-safe) ───
+function renderNodes() {
   if (!config) return;
+  const container = document.getElementById('nodeList');
+  container.innerHTML = '';
 
-  const urlInput = document.getElementById('subUrl');
-  if (config.subscription_url && !urlInput.value) {
-    urlInput.value = config.subscription_url;
+  const count = document.getElementById('nodeCount');
+  count.textContent = '(' + config.nodes.length + ')';
+
+  // Group nodes by source
+  const groups = {};
+  config.nodes.forEach(node => {
+    const src = node.source || 'manual';
+    if (!groups[src]) groups[src] = [];
+    groups[src].push(node);
+  });
+
+  // Determine group order: manual first, then subscriptions
+  const groupKeys = [];
+  if (groups['manual']) groupKeys.push('manual');
+  // Add subscription groups in subscription order
+  if (config.subscriptions) {
+    config.subscriptions.forEach(sub => {
+      if (groups[sub.id]) groupKeys.push(sub.id);
+    });
+  }
+  // Any remaining sources
+  Object.keys(groups).forEach(k => {
+    if (!groupKeys.includes(k)) groupKeys.push(k);
+  });
+
+  groupKeys.forEach(groupKey => {
+    const nodes = groups[groupKey];
+    const isManual = groupKey === 'manual';
+    const groupType = isManual ? 'manual' : 'subscription';
+
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'node-group';
+    groupDiv.dataset.type = groupType;
+
+    // Group header
+    const header = document.createElement('div');
+    header.className = 'node-group-header';
+    if (collapsedGroups[groupKey]) header.classList.add('collapsed');
+
+    const chevron = document.createElement('span');
+    chevron.className = 'group-chevron';
+    chevron.textContent = '▼';
+
+    const headerText = document.createElement('span');
+    if (isManual) {
+      headerText.textContent = '📌 手动添加';
+    } else {
+      headerText.textContent = '📡 ' + getSubName(groupKey);
+    }
+
+    const groupCount = document.createElement('span');
+    groupCount.className = 'group-count';
+    groupCount.textContent = '(' + nodes.length + ' 节点)';
+
+    header.appendChild(chevron);
+    header.appendChild(headerText);
+    header.appendChild(groupCount);
+
+    header.addEventListener('click', () => {
+      collapsedGroups[groupKey] = !collapsedGroups[groupKey];
+      header.classList.toggle('collapsed');
+      body.classList.toggle('collapsed');
+    });
+
+    // Group body
+    const body = document.createElement('div');
+    body.className = 'node-group-body';
+    if (collapsedGroups[groupKey]) body.classList.add('collapsed');
+
+    nodes.forEach(node => {
+      const isActive = config.active_node === node.id;
+      const li = document.createElement('div');
+      li.className = 'node-item' + (isActive ? ' active' : '');
+
+      // Build DOM elements safely (no innerHTML with user data)
+      const flagSpan = document.createElement('span');
+      flagSpan.className = 'flag';
+      flagSpan.textContent = node.flag || '🌐';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'node-info';
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'node-name';
+      nameDiv.textContent = (isActive ? '▶ ' : '') + (node.name || node.id);
+
+      const detailDiv = document.createElement('div');
+      detailDiv.className = 'node-detail';
+
+      const addrSpan = document.createElement('span');
+      addrSpan.textContent = node.server + ':' + node.server_port;
+      detailDiv.appendChild(addrSpan);
+
+      if (!isManual) {
+        const srcBadge = document.createElement('span');
+        srcBadge.className = 'node-source-badge';
+        srcBadge.textContent = '📡 订阅';
+        detailDiv.appendChild(srcBadge);
+      }
+
+      infoDiv.appendChild(nameDiv);
+      infoDiv.appendChild(detailDiv);
+
+      // Badges column
+      const badgesDiv = document.createElement('div');
+      badgesDiv.className = 'node-badges';
+      badgesDiv.style.cssText = 'display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0';
+
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'node-type';
+      typeSpan.textContent = node.type;
+      badgesDiv.appendChild(typeSpan);
+
+      // Latency badge (if available)
+      const latInfo = latencyData[node.id];
+      if (latInfo !== undefined) {
+        const latBadge = createLatencyBadge(latInfo);
+        badgesDiv.appendChild(latBadge);
+      }
+
+      // Actions
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'node-actions';
+
+      if (isActive) {
+        const activeSpan = document.createElement('span');
+        activeSpan.style.cssText = 'color:var(--success);font-size:11px;white-space:nowrap';
+        activeSpan.textContent = '使用中';
+        actionsDiv.appendChild(activeSpan);
+      } else {
+        const switchBtn = document.createElement('button');
+        switchBtn.className = 'btn btn-switch';
+        switchBtn.textContent = '切换';
+        switchBtn.disabled = isOperating;
+        switchBtn.dataset.nodeId = node.id;
+        switchBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          switchNode(e.currentTarget.dataset.nodeId);
+        });
+        actionsDiv.appendChild(switchBtn);
+      }
+
+      // Ping button
+      const pingBtn = document.createElement('button');
+      pingBtn.className = 'btn-icon';
+      pingBtn.textContent = '⚡';
+      pingBtn.title = '测速';
+      pingBtn.dataset.nodeId = node.id;
+      pingBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pingSingleNode(e.currentTarget.dataset.nodeId);
+      });
+      actionsDiv.appendChild(pingBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn btn-danger';
+      deleteBtn.textContent = '✕';
+      deleteBtn.disabled = isOperating;
+      deleteBtn.dataset.nodeId = node.id;
+      deleteBtn.dataset.nodeName = node.name || node.id;
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteNode(e.currentTarget.dataset.nodeId, e.currentTarget.dataset.nodeName);
+      });
+      actionsDiv.appendChild(deleteBtn);
+
+      li.appendChild(flagSpan);
+      li.appendChild(infoDiv);
+      li.appendChild(badgesDiv);
+      li.appendChild(actionsDiv);
+      body.appendChild(li);
+    });
+
+    groupDiv.appendChild(header);
+    groupDiv.appendChild(body);
+    container.appendChild(groupDiv);
+  });
+}
+
+// ─── Latency badge helper ───
+function createLatencyBadge(latMs) {
+  const badge = document.createElement('span');
+  badge.className = 'latency-badge';
+  if (latMs < 0) {
+    badge.classList.add('latency-timeout');
+    badge.textContent = '超时';
+  } else if (latMs < 100) {
+    badge.classList.add('latency-good');
+    badge.textContent = latMs + 'ms';
+  } else if (latMs <= 300) {
+    badge.classList.add('latency-ok');
+    badge.textContent = latMs + 'ms';
+  } else {
+    badge.classList.add('latency-bad');
+    badge.textContent = latMs + 'ms';
+  }
+  return badge;
+}
+
+// ─── Ping single node ───
+async function pingSingleNode(nodeId) {
+  appendLog('');
+  appendLog('⚡ 测速: ' + nodeId);
+  try {
+    const result = await runCommand(
+      '~/.lima-proxy/lima-proxy-switch.sh ping ' + shellEscape(nodeId) + ' 2>&1',
+      30000
+    );
+    if (result) {
+      try {
+        const data = JSON.parse(result.trim());
+        latencyData[data.id || nodeId] = data.latency_ms;
+        renderNodes();
+        if (data.latency_ms < 0) {
+          showToast('测速超时', 'error');
+        } else {
+          showToast('⚡ ' + data.latency_ms + 'ms');
+        }
+      } catch(e) {
+        // Try to extract JSON from multi-line output
+        const lines = result.trim().split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const data = JSON.parse(lines[i].trim());
+            if (data && data.latency_ms !== undefined) {
+              latencyData[data.id || nodeId] = data.latency_ms;
+              renderNodes();
+              break;
+            }
+          } catch(ignored) {}
+        }
+      }
+    }
+  } catch(e) {
+    appendLog('❌ 测速失败: ' + e.message);
+  }
+}
+
+// ─── Ping all nodes ───
+async function pingAllNodes() {
+  if (isOperating) {
+    showToast('正在操作中，请稍候', 'error');
+    return;
   }
 
-  const statusEl = document.getElementById('subStatus');
-  const lastUpdateEl = document.getElementById('subLastUpdate');
-  const subNodes = config.nodes.filter(n => n.source === 'subscription').length;
+  const btn = document.getElementById('btnPingAll');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '';
+  const spinSpan = document.createElement('span');
+  spinSpan.className = 'spinning';
+  spinSpan.textContent = '⚡';
+  btn.appendChild(spinSpan);
+  btn.appendChild(document.createTextNode(' 测速中...'));
 
-  if (config.subscription_url) {
-    statusEl.innerHTML = '<span class="sub-badge">已配置</span>';
-    lastUpdateEl.textContent = config.subscription_updated
-      ? '上次: ' + config.subscription_updated + ' | ' + subNodes + ' 节点'
-      : '从未更新';
-  } else {
-    statusEl.textContent = '未配置';
-    lastUpdateEl.textContent = '';
+  appendLog('');
+  appendLog('⚡ 全部测速...');
+
+  try {
+    const result = await runCommand(
+      '~/.lima-proxy/lima-proxy-switch.sh ping-all 2>&1',
+      120000  // 2 minute timeout for batch
+    );
+    if (result) {
+      try {
+        const arr = JSON.parse(result.trim());
+        if (Array.isArray(arr)) {
+          arr.forEach(item => {
+            if (item.id && item.latency_ms !== undefined) {
+              latencyData[item.id] = item.latency_ms;
+            }
+          });
+          renderNodes();
+          showToast('⚡ 测速完成 (' + arr.length + ' 节点)');
+        }
+      } catch(e) {
+        // Try to find JSON array in multi-line output
+        const lines = result.trim().split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const arr = JSON.parse(lines[i].trim());
+            if (Array.isArray(arr)) {
+              arr.forEach(item => {
+                if (item.id && item.latency_ms !== undefined) {
+                  latencyData[item.id] = item.latency_ms;
+                }
+              });
+              renderNodes();
+              showToast('⚡ 测速完成 (' + arr.length + ' 节点)');
+              break;
+            }
+          } catch(ignored) {}
+        }
+      }
+    }
+  } catch(e) {
+    appendLog('❌ 全部测速失败: ' + e.message);
+    showToast('测速失败', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
@@ -721,48 +1152,91 @@ async function deleteNode(nodeId, nodeName) {
   showToast('已删除: ' + nodeName);
 }
 
-// ─── Subscription management ───
-async function saveSubscriptionUrl() {
-  const url = document.getElementById('subUrl').value.trim();
-  if (!url) {
-    showToast('请输入订阅地址', 'error');
-    return;
-  }
-  await runCommand('~/.lima-proxy/lima-proxy-switch.sh set-subscription ' + shellEscape(url) + ' 2>&1');
-  await loadConfig();
-  showToast('✅ 订阅地址已保存');
+// ─── Subscription management (multi) ───
+function toggleAddSubForm() {
+  document.getElementById('addSubForm').classList.toggle('open');
 }
 
-async function updateSubscription() {
+async function addSubscription() {
+  const name = document.getElementById('fSubName').value.trim();
+  const url = document.getElementById('fSubUrl').value.trim();
+  const filter = document.getElementById('fSubFilter').value.trim() || '日本';
+
+  if (!name || !url) {
+    showToast('请填写名称和订阅地址', 'error');
+    return;
+  }
+
+  if (isOperating) {
+    showToast('正在操作中，请稍候', 'error');
+    return;
+  }
+  isOperating = true;
+
+  try {
+    await runCommand(
+      '~/.lima-proxy/lima-proxy-switch.sh add-subscription ' + shellEscape(name) + ' ' + shellEscape(url) + ' --filter=' + shellEscape(filter) + ' 2>&1',
+      30000
+    );
+    await loadConfig();
+    const newSub = config.subscriptions ? config.subscriptions[config.subscriptions.length - 1] : null;
+    if (newSub) {
+      appendLog('');
+      appendLog('🔄 自动拉取新订阅节点: ' + newSub.name);
+      await runCommand(
+        '~/.lima-proxy/lima-proxy-switch.sh import-subscription ' + shellEscape(newSub.id) + ' 2>&1',
+        60000
+      );
+    }
+  } finally {
+    isOperating = false;
+  }
+
+  // Clear form
+  document.getElementById('fSubName').value = '';
+  document.getElementById('fSubUrl').value = '';
+  document.getElementById('fSubFilter').value = '日本';
+  toggleAddSubForm();
+
+  await loadConfig();
+  showToast('✅ 订阅已添加');
+}
+
+async function removeSubscription(subId, subName) {
+  if (isOperating) return;
+  if (!confirm('删除订阅 "' + subName + '"？\n关联的节点也将被删除。')) return;
+
+  isOperating = true;
+  renderSubscriptions();
+
+  try {
+    await runCommand(
+      '~/.lima-proxy/lima-proxy-switch.sh remove-subscription ' + shellEscape(subId) + ' 2>&1',
+      30000
+    );
+  } finally {
+    isOperating = false;
+  }
+
+  await loadConfig();
+  showToast('已删除订阅: ' + subName);
+}
+
+async function updateOneSubscription(subId) {
   if (isOperating) {
     showToast('正在操作中，请稍候', 'error');
     return;
   }
 
-  // Save URL first if changed
-  const urlInput = document.getElementById('subUrl').value.trim();
-  if (urlInput && urlInput !== (config.subscription_url || '')) {
-    await runCommand('~/.lima-proxy/lima-proxy-switch.sh set-subscription ' + shellEscape(urlInput) + ' 2>&1');
-  }
-
-  if (!urlInput && !config.subscription_url) {
-    showToast('请先输入订阅地址', 'error');
-    return;
-  }
-
   isOperating = true;
-  const btn = document.getElementById('btnUpdateSub');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinning">🔄</span> 更新中...';
-  renderNodes();
   appendLog('');
+  appendLog('🔄 更新订阅: ' + getSubName(subId));
 
   try {
     const result = await runCommand(
-      '~/.lima-proxy/lima-proxy-switch.sh import-subscription 2>&1',
-      60000  // 1 minute timeout
+      '~/.lima-proxy/lima-proxy-switch.sh import-subscription ' + shellEscape(subId) + ' 2>&1',
+      60000
     );
-
     if (result && result.includes('✅')) {
       showToast('✅ 订阅更新成功');
     } else if (result && result.includes('❌')) {
@@ -770,8 +1244,52 @@ async function updateSubscription() {
     }
   } finally {
     isOperating = false;
+  }
+
+  await loadConfig();
+}
+
+async function updateAllSubscriptions() {
+  if (isOperating) {
+    showToast('正在操作中，请稍候', 'error');
+    return;
+  }
+
+  if (!config.subscriptions || config.subscriptions.length === 0) {
+    showToast('暂无订阅', 'error');
+    return;
+  }
+
+  isOperating = true;
+  const btn = document.getElementById('btnUpdateAllSub');
+  btn.disabled = true;
+  btn.innerHTML = '';
+  const spinSpan = document.createElement('span');
+  spinSpan.className = 'spinning';
+  spinSpan.textContent = '🔄';
+  btn.appendChild(spinSpan);
+  btn.appendChild(document.createTextNode(' 更新中...'));
+
+  renderNodes();
+  renderSubscriptions();
+  appendLog('');
+  appendLog('🔄 更新全部订阅...');
+
+  try {
+    const result = await runCommand(
+      '~/.lima-proxy/lima-proxy-switch.sh import-subscription 2>&1',
+      120000  // 2 minute timeout
+    );
+
+    if (result && result.includes('✅')) {
+      showToast('✅ 全部订阅更新成功');
+    } else if (result && result.includes('❌')) {
+      showToast('订阅更新失败', 'error');
+    }
+  } finally {
+    isOperating = false;
     btn.disabled = false;
-    btn.textContent = '🔄 更新订阅 (日本节点)';
+    btn.textContent = '🔄 全部更新';
   }
 
   await loadConfig();

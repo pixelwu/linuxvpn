@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 # lima-proxy-switch.sh — CLI tool to manage Lima mini-work sing-box proxy
-# v2.0 — refactored for robustness + subscription support
+# v3.0 — Multi-subscription grouping & Latency testing
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Usage:
-#   lima-proxy-switch.sh status                      — show current proxy status
-#   lima-proxy-switch.sh list                        — list all nodes from config
-#   lima-proxy-switch.sh switch <id>                 — switch to node by id
-#   lima-proxy-switch.sh add <json>                  — add a node (JSON string)
-#   lima-proxy-switch.sh delete <id>                 — delete a node by id
-#   lima-proxy-switch.sh test                        — test current proxy connectivity
-#   lima-proxy-switch.sh import-trojan-url <url>     — import trojan:// URL
-#   lima-proxy-switch.sh import-subscription [--url] — import from subscription (uses saved URL or --url=xxx)
-#   lima-proxy-switch.sh set-subscription <url>      — save subscription URL
-#   lima-proxy-switch.sh subscription-info           — show saved subscription info
+#   lima-proxy-switch.sh status                              — show current proxy status
+#   lima-proxy-switch.sh list                                — list nodes grouped by subscription
+#   lima-proxy-switch.sh switch <id>                         — switch to node by id
+#   lima-proxy-switch.sh test                                — test current proxy connectivity
+#   lima-proxy-switch.sh add <json>                          — add a node (JSON string)
+#   lima-proxy-switch.sh delete <id>                         — delete a node by id
+#   lima-proxy-switch.sh ping <id>                           — test latency of a node (ms)
+#   lima-proxy-switch.sh ping-all                            — test latency of all nodes (parallel)
+#
+# Subscription commands:
+#   lima-proxy-switch.sh add-subscription <name> <url> [filter] — add a subscription
+#   lima-proxy-switch.sh remove-subscription <sub-id>           — remove subscription & its nodes
+#   lima-proxy-switch.sh list-subscriptions                     — list all subscriptions
+#   lima-proxy-switch.sh import-subscription [sub-id]           — refresh one or all subscriptions
 
 set -euo pipefail
 
@@ -34,10 +38,6 @@ _vm_sudo() {
   limactl shell "$VM_NAME" -- sudo bash -c "$1"
 }
 
-_jq_config() {
-  jq "$@" "$CONFIG"
-}
-
 _ensure_vm_running() {
   local st
   st=$(limactl list --json | jq -r 'select(.name=="'"$VM_NAME"'") | .status' 2>/dev/null | head -1)
@@ -48,7 +48,7 @@ _ensure_vm_running() {
   fi
 }
 
-# Atomic config write (macOS compatible, no flock needed)
+# Atomic config write (macOS compatible)
 _write_config() {
   local jq_expr="$1"
   local tmp
@@ -67,14 +67,43 @@ _urldecode() {
   python3 -c "import sys,urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))" <<< "$1" 2>/dev/null || printf '%s' "$1"
 }
 
-# Escape string for safe HTML display
-_sanitize_name() {
-  local name="$1"
-  # Remove any HTML tags but keep emoji and normal chars
-  echo "$name" | sed 's/<[^>]*>//g'
+# Auto-migrate v1 config to v2 multi-subscription schema
+_migrate_config() {
+  [[ ! -f "$CONFIG" ]] && return 0
+  if jq -e '.subscription_url' "$CONFIG" >/dev/null 2>&1 || jq -e '.subscriptions == null' "$CONFIG" >/dev/null 2>&1; then
+    local old_url old_updated
+    old_url=$(jq -r '.subscription_url // ""' "$CONFIG" 2>/dev/null || true)
+    old_updated=$(jq -r '.subscription_updated // ""' "$CONFIG" 2>/dev/null || true)
+    
+    local tmp
+    tmp=$(mktemp "$HOME/.lima-proxy/.config.tmp.XXXXXX")
+    jq --arg url "$old_url" --arg updated "$old_updated" '
+      .version = 2 |
+      .subscriptions = (
+        if (.subscriptions | type == "array") then
+          .subscriptions
+        elif ($url != "") then
+          [{id: "sub-1", name: "默认订阅", url: $url, filter: "日本", updated_at: $updated}]
+        else
+          []
+        end
+      ) |
+      .nodes = [
+        .nodes[]? |
+        if .source == "subscription" then
+          .source = "sub-1"
+        elif (.source == null or .source == "") then
+          .source = "manual"
+        else
+          .
+        end
+      ] |
+      del(.subscription_url) | del(.subscription_updated)
+    ' "$CONFIG" > "$tmp" && mv "$tmp" "$CONFIG"
+  fi
 }
 
-# ─── Commands ───
+# ─── Status & List ───
 
 cmd_status() {
   _ensure_vm_running
@@ -90,7 +119,7 @@ cmd_status() {
     echo "  服务:   ❌ $svc_status"
   fi
 
-  # Current config — read outbound[0] fields safely
+  # Current config
   local current
   current=$(_vm sudo cat "$SING_BOX_CONF" 2>/dev/null | jq -r '.outbounds[0] | "\(.type)|\(.server)|\(.server_port)|\(.tls.server_name // "-")"' 2>/dev/null || echo "unknown|unknown|unknown|unknown")
   IFS='|' read -r c_type c_server c_port c_sni <<< "$current"
@@ -107,12 +136,13 @@ cmd_status() {
   # Connectivity
   echo ""
   echo "🔗 连通性测试..."
-  local http_code
-  http_code=$(_vm bash -c 'curl -x http://10.203.0.1:17890 -s -o /dev/null -w "%{http_code}" --connect-timeout 8 https://www.google.com' 2>/dev/null || true)
-  if [[ "$http_code" =~ ^[23] ]]; then
-    echo "  结果:   ✅ HTTP $http_code"
+  local raw_code code
+  raw_code=$(_vm bash -c 'curl -x http://10.203.0.1:17890 -s -o /dev/null -w "%{http_code}" --connect-timeout 8 https://www.google.com 2>/dev/null' 2>/dev/null || true)
+  code=$(echo "$raw_code" | grep -oE '[0-9]{3}' | tail -1 || echo "000")
+  if [[ "$code" =~ ^[23] ]]; then
+    echo "  结果:   ✅ HTTP $code"
   else
-    echo "  结果:   ❌ 连接失败 (HTTP ${http_code:-000})"
+    echo "  结果:   ❌ 连接失败 (HTTP ${code})"
   fi
 
   # Active node from config
@@ -121,53 +151,77 @@ cmd_status() {
   echo ""
   echo "  配置活跃节点: $active_id"
 
-  # Subscription info
-  local sub_url
-  sub_url=$(jq -r '.subscription_url // empty' "$CONFIG" 2>/dev/null || true)
-  if [[ -n "$sub_url" ]]; then
-    local sub_updated
-    sub_updated=$(jq -r '.subscription_updated // "从未"' "$CONFIG" 2>/dev/null || echo "从未")
-    echo "  订阅: 已配置 (上次更新: $sub_updated)"
-  fi
+  # Subscription summary
+  local sub_count
+  sub_count=$(jq '.subscriptions | length' "$CONFIG" 2>/dev/null || echo "0")
+  echo "  订阅数量: $sub_count 组"
 }
 
 cmd_list() {
-  echo "📋 已保存的节点"
+  echo "📋 节点列表 (按订阅分组)"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   local active_id
   active_id=$(jq -r '.active_node // ""' "$CONFIG" 2>/dev/null || echo "")
-  local count
-  count=$(jq '.nodes | length' "$CONFIG" 2>/dev/null || echo "0")
 
-  if [[ "$count" == "0" ]]; then
-    echo "  (无节点)"
-    return
-  fi
+  python3 -c '
+import json, sys
 
-  jq -r '.nodes[] | "\(.id)|\(.flag // "🌐")|\(.name)|\(.type)|\(.server):\(.server_port)|\(.source // "manual")"' "$CONFIG" 2>/dev/null | while IFS='|' read -r id flag name type endpoint source; do
-    local marker="  "
-    if [[ "$id" == "$active_id" ]]; then
-      marker="▶ "
-    fi
-    local source_tag=""
-    if [[ "$source" == "subscription" ]]; then
-      source_tag=" 📡"
-    fi
-    printf "%s%s %s  [%s]  %s%s\n" "$marker" "$flag" "$name" "$type" "$endpoint" "$source_tag"
-  done
+with open("'"$CONFIG"'") as f:
+    cfg = json.load(f)
+
+active = "'"$active_id"'"
+subs = {s["id"]: s["name"] for s in cfg.get("subscriptions", [])}
+nodes = cfg.get("nodes", [])
+
+# Group nodes
+groups = {}
+for n in nodes:
+    src = n.get("source", "manual")
+    if src not in groups:
+        groups[src] = []
+    groups[src].append(n)
+
+# Print subscriptions first
+for sub_id, sub_name in subs.items():
+    sub_nodes = groups.get(sub_id, [])
+    print(f"📁 订阅: {sub_name} ({len(sub_nodes)} 节点)")
+    if not sub_nodes:
+        print("    (无节点)")
+    for n in sub_nodes:
+        m = "▶ " if n["id"] == active else "  "
+        flag = n.get("flag", "🌐")
+        name = n.get("name", "")
+        ntype = n.get("type", "")
+        server = n.get("server", "")
+        port = n.get("server_port", "")
+        print(f"  {m}{flag} {name}  [{ntype}]  {server}:{port}")
+    print()
+
+# Print manual nodes
+manual_nodes = groups.get("manual", [])
+if manual_nodes or not subs:
+    print(f"📌 手动添加 ({len(manual_nodes)} 节点)")
+    for n in manual_nodes:
+        m = "▶ " if n["id"] == active else "  "
+        flag = n.get("flag", "🌐")
+        name = n.get("name", "")
+        ntype = n.get("type", "")
+        server = n.get("server", "")
+        port = n.get("server_port", "")
+        print(f"  {m}{flag} {name}  [{ntype}]  {server}:{port}")
+'
 }
+
+# ─── Switch & Reload ───
 
 cmd_switch() {
   local node_id="$1"
   _ensure_vm_running
 
-  # Get node from config
   local node
   node=$(jq -e ".nodes[] | select(.id==\"$node_id\")" "$CONFIG" 2>/dev/null || true)
   if [[ -z "$node" ]]; then
     echo "❌ 未找到节点: $node_id"
-    echo "可用节点:"
-    cmd_list
     exit 1
   fi
 
@@ -182,17 +236,15 @@ cmd_switch() {
 
   echo "🔄 切换到: $n_name [$n_type] ($n_server:$n_port)"
 
-  # Determine transport protocol for nftables
   local transport="tcp"
   if [[ "$n_type" == "hysteria2" || "$n_type" == "hysteria" || "$n_type" == "tuic" ]]; then
     transport="udp"
   fi
 
-  # Resolve server hostname to IP for nftables (nftables needs IP)
+  # Resolve server hostname to IP for nftables
   local n_ip="$n_server"
   if ! echo "$n_server" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "  ℹ️  解析域名 $n_server ..."
-    # Avoid Fake-IP (198.18.x.x / 198.19.x.x) caused by macOS VPN/TUN
     n_ip=$(dig @8.8.8.8 +short "$n_server" A 2>/dev/null | grep -vE '^198\.(18|19)\.' | grep -E '^[0-9]+\.' | head -1 || true)
     if [[ -z "$n_ip" ]]; then
       n_ip=$(curl -s "https://dns.google/resolve?name=$n_server&type=A" 2>/dev/null | jq -r '.Answer[]? | select(.type==1) | .data' 2>/dev/null | grep -vE '^198\.(18|19)\.' | head -1 || true)
@@ -207,7 +259,7 @@ cmd_switch() {
     echo "  ℹ️  解析结果: $n_ip"
   fi
 
-  # Step 1: Generate new sing-box.json using jq (safe JSON generation)
+  # Step 1: Generate sing-box.json
   echo "  [1/4] 生成 sing-box 配置..."
   local sing_box_json
   sing_box_json=$(jq -n \
@@ -256,18 +308,17 @@ cmd_switch() {
       }
     }')
 
-  # Write to VM
   echo "$sing_box_json" | _vm sudo tee "$SING_BOX_CONF" > /dev/null
   _vm sudo chown root:mwproxy "$SING_BOX_CONF"
   _vm sudo chmod 640 "$SING_BOX_CONF"
   echo "  ✅ sing-box.json 已更新"
 
-  # Step 2: Update nftables — regenerate the proxy_out rule (not sed)
+  # Step 2: Update nftables
   echo "  [2/4] 更新防火墙规则..."
   _generate_and_apply_nftables "$n_ip" "$n_port" "$transport"
   echo "  ✅ root.nft 已更新 (IP=$n_ip, port=$n_port, proto=$transport)"
 
-  # Step 3: Validate + reload
+  # Step 3: Reload
   echo "  [3/4] 校验并重载..."
   if ! _vm sudo /usr/local/bin/sing-box check -c "$SING_BOX_CONF" 2>&1; then
     echo "  ❌ sing-box 配置校验失败!"
@@ -278,35 +329,27 @@ cmd_switch() {
   _vm sudo systemctl restart mw-proxy.service
   echo "  ✅ sing-box 已重启"
 
-  # Step 4: Update config.json active node
+  # Step 4: Update active node
   echo "  [4/4] 更新本地配置..."
   _write_config ".active_node = \"$node_id\""
   echo "  ✅ 活跃节点已设为: $node_id"
 
-  # Test connectivity
   echo ""
   echo "🔗 等待 3 秒后测试连通性..."
   sleep 3
   cmd_test_quiet
 }
 
-# Generate nftables config with correct protocol (tcp/udp)
 _generate_and_apply_nftables() {
   local ip="$1"
   local port="$2"
-  local proto="${3:-tcp}"  # tcp or udp
+  local proto="${3:-tcp}"
 
-  # Read the current nftables config and replace the proxy_out rules
   local nft_content
   nft_content=$(_vm sudo cat "$NFT_CONF" 2>/dev/null)
 
-  # Build new proxy_out chain content
-  # We need to replace: elements = { ... } and the protocol/port rule
   local new_nft
   new_nft=$(echo "$nft_content" | sed "s/elements = { [0-9a-f.:, ]* }/elements = { $ip }/")
-
-  # Replace the outbound rule line (tcp or udp, any port) in proxy_out
-  # Match: ip daddr @upstream4 {tcp|udp} dport {port} ct state ...
   new_nft=$(echo "$new_nft" | sed -E "s/(ip daddr @upstream4 )(tcp|udp)( dport )[0-9]+( ct state)/\1${proto}\3${port}\4/")
 
   echo "$new_nft" | _vm sudo tee "$NFT_CONF" > /dev/null
@@ -344,27 +387,24 @@ cmd_test_quiet() {
   fi
 }
 
+# ─── Node CRUD ───
+
 cmd_add() {
   local node_json="$1"
-  # Validate JSON
   if ! echo "$node_json" | jq -e '.id and .type and .server and .server_port and .password' > /dev/null 2>&1; then
     echo "❌ 无效节点 JSON，必须包含: id, type, server, server_port, password"
-    echo '示例: {"id":"my-node","name":"我的节点","type":"trojan","server":"1.2.3.4","server_port":443,"password":"xxx","tls_sni":"example.com","flag":"🇯🇵"}'
     exit 1
   fi
 
   local node_id
   node_id=$(echo "$node_json" | jq -r '.id')
 
-  # Check for duplicate ID
   local existing
   existing=$(jq -r ".nodes[] | select(.id==\"$node_id\") | .id" "$CONFIG" 2>/dev/null || true)
   if [[ -n "$existing" ]]; then
-    echo "⚠️  节点 $node_id 已存在，将更新"
     _write_config "del(.nodes[] | select(.id==\"$node_id\"))"
   fi
 
-  # Set defaults via jq (safe)
   local enriched
   enriched=$(echo "$node_json" | jq '{
     id, name: (.name // .id), type, server, server_port, password,
@@ -376,7 +416,6 @@ cmd_add() {
   }')
 
   _write_config ".nodes += [$enriched]"
-
   local name
   name=$(echo "$enriched" | jq -r '.name')
   echo "✅ 已添加节点: $name"
@@ -384,8 +423,6 @@ cmd_add() {
 
 cmd_delete() {
   local node_id="$1"
-
-  # Check if exists
   local exists
   exists=$(jq -r ".nodes[] | select(.id==\"$node_id\") | .id" "$CONFIG" 2>/dev/null || true)
   if [[ -z "$exists" ]]; then
@@ -405,21 +442,19 @@ cmd_delete() {
 
 cmd_import_trojan_url() {
   local url="$1"
+  local source="${2:-manual}"
 
-  # Determine protocol
   local proto=""
   if [[ "$url" =~ ^trojan:// ]]; then
     proto="trojan"
   elif [[ "$url" =~ ^hysteria2:// ]]; then
     proto="hysteria2"
   else
-    echo "❌ 不支持的协议 (支持: trojan://, hysteria2://)"
+    echo "❌ 不支持的协议"
     exit 1
   fi
 
   local body="${url#*://}"
-
-  # Extract fragment (node name) — must be before stripping
   local name=""
   if [[ "$body" == *"#"* ]]; then
     local fragment="${body##*#}"
@@ -427,31 +462,24 @@ cmd_import_trojan_url() {
     body="${body%%#*}"
   fi
 
-  # Extract password and host part
-  local password=""
-  local host_part=""
+  local password="" host_part=""
   if [[ "$body" == *"@"* ]]; then
     password="${body%%@*}"
     host_part="${body#*@}"
   else
-    echo "❌ URL 格式错误: 缺少 @ 分隔符"
+    echo "❌ URL 缺少 @"
     exit 1
   fi
-
-  # URL-decode password (may contain special chars)
   password=$(_urldecode "$password")
 
-  # Separate host:port from query string
   local host_port_part="${host_part%%\?*}"
   local query_part=""
   if [[ "$host_part" == *"?"* ]]; then
     query_part="${host_part#*\?}"
   fi
 
-  # Parse host and port
   local host port
   if [[ "$host_port_part" =~ ^\[(.+)\]:([0-9]+)$ ]]; then
-    # IPv6: [::1]:443
     host="${BASH_REMATCH[1]}"
     port="${BASH_REMATCH[2]}"
   elif [[ "$host_port_part" =~ ^(.+):([0-9]+)$ ]]; then
@@ -462,29 +490,20 @@ cmd_import_trojan_url() {
     exit 1
   fi
 
-  # Extract SNI from query params
   local sni="$host"
   if [[ -n "$query_part" ]]; then
     local sni_match
     sni_match=$(echo "$query_part" | grep -oE 'sni=[^&]+' | head -1 | cut -d= -f2 || true)
-    if [[ -n "$sni_match" ]]; then
-      sni=$(_urldecode "$sni_match")
-    fi
-    # Also check peer= for hysteria2
+    [[ -n "$sni_match" ]] && sni=$(_urldecode "$sni_match")
     local peer_match
     peer_match=$(echo "$query_part" | grep -oE 'peer=[^&]+' | head -1 | cut -d= -f2 || true)
-    if [[ -n "$peer_match" ]]; then
-      sni=$(_urldecode "$peer_match")
-    fi
+    [[ -n "$peer_match" ]] && sni=$(_urldecode "$peer_match")
   fi
 
-  # Generate stable ID
   local node_id
   node_id="${proto}-$(echo "$host" | tr '.' '-')-${port}"
-
   [[ -z "$name" ]] && name="$host:$port"
 
-  # Detect flag from name
   local flag="🌐"
   if [[ "$name" == *"日本"* || "$name" == *"JP"* || "$name" == *"Japan"* ]]; then
     flag="🇯🇵"
@@ -504,8 +523,6 @@ cmd_import_trojan_url() {
     flag="🇬🇧"
   elif [[ "$name" == *"澳大利亚"* || "$name" == *"AU"* ]]; then
     flag="🇦🇺"
-  elif [[ "$name" == *"爱沙尼亚"* || "$name" == *"EE"* ]]; then
-    flag="🇪🇪"
   fi
 
   local json
@@ -518,175 +535,229 @@ cmd_import_trojan_url() {
     --arg pw "$password" \
     --arg sni "$sni" \
     --arg flag "$flag" \
-    --arg source "${2:-manual}" \
+    --arg source "$source" \
     '{id:$id, name:$name, type:$type, server:$server, server_port:$port, password:$pw, tls_sni:$sni, flag:$flag, source:$source}')
 
   cmd_add "$json"
 }
 
-# ─── Subscription Commands ───
+# ─── Multi-Subscription Commands ───
 
-cmd_set_subscription() {
-  local url="$1"
-  _write_config ". + {subscription_url: \"$url\"}"
-  echo "✅ 订阅地址已保存"
+cmd_add_subscription() {
+  local name="$1"
+  local url="$2"
+  local filter="${3:-日本}"
+  filter="${filter#--filter=}"
+
+  # Generate next ID: sub-1, sub-2, ...
+  local next_id
+  next_id=$(python3 -c '
+import json
+with open("'"$CONFIG"'") as f:
+    cfg = json.load(f)
+existing = [s.get("id","") for s in cfg.get("subscriptions",[])]
+i = 1
+while f"sub-{i}" in existing:
+    i += 1
+print(f"sub-{i}")
+')
+
+  local new_sub
+  new_sub=$(jq -n \
+    --arg id "$next_id" \
+    --arg name "$name" \
+    --arg url "$url" \
+    --arg filter "$filter" \
+    '{id:$id, name:$name, url:$url, filter:$filter, updated_at:""}')
+
+  _write_config ".subscriptions += [$new_sub]"
+  echo "✅ 已添加订阅: $name (ID: $next_id)"
 }
 
-cmd_subscription_info() {
-  local url
-  url=$(jq -r '.subscription_url // empty' "$CONFIG" 2>/dev/null || true)
-  if [[ -z "$url" ]]; then
-    echo "❌ 未配置订阅地址"
-    echo "   使用: $(basename "$0") set-subscription <url>"
-    return 1
+cmd_remove_subscription() {
+  local sub_id="$1"
+  local exists
+  exists=$(jq -r ".subscriptions[] | select(.id==\"$sub_id\") | .id" "$CONFIG" 2>/dev/null || true)
+  if [[ -z "$exists" ]]; then
+    echo "❌ 未找到订阅: $sub_id"
+    exit 1
   fi
-  local updated
-  updated=$(jq -r '.subscription_updated // "从未"' "$CONFIG" 2>/dev/null || echo "从未")
-  local sub_count
-  sub_count=$(jq '[.nodes[] | select(.source=="subscription")] | length' "$CONFIG" 2>/dev/null || echo "0")
 
-  echo "📡 订阅信息"
+  # Delete subscription & its nodes
+  _write_config "
+    del(.subscriptions[] | select(.id==\"$sub_id\")) |
+    del(.nodes[] | select(.source==\"$sub_id\"))
+  "
+  echo "✅ 已删除订阅 $sub_id 及所属节点"
+}
+
+cmd_list_subscriptions() {
+  echo "📡 已配置的订阅组"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  地址:     ${url:0:50}..."
-  echo "  上次更新: $updated"
-  echo "  订阅节点: ${sub_count} 个"
+  jq -r '.subscriptions[] | "\(.id)|\(.name)|\(.filter)|\(.updated_at // "从未")|\(.url)"' "$CONFIG" 2>/dev/null | while IFS='|' read -r id name filter updated url; do
+    local count
+    count=$(jq "[.nodes[] | select(.source==\"$id\")] | length" "$CONFIG" 2>/dev/null || echo "0")
+    echo "  🏷️  [$id] $name"
+    echo "      节点: ${count} 个 | 过滤: ${filter:-无} | 上次更新: ${updated:-从未}"
+    echo "      地址: ${url:0:55}..."
+    echo ""
+  done
 }
 
 cmd_import_subscription() {
-  local url=""
-  local filter_country="日本"
+  local target_id="${1:-}"
 
-  # Parse args
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --url=*) url="${1#--url=}" ;;
-      --filter=*) filter_country="${1#--filter=}" ;;
-      --all) filter_country="" ;;
-      *) url="$1" ;;
-    esac
-    shift
-  done
-
-  # Use saved URL if none provided
-  if [[ -z "$url" ]]; then
-    url=$(jq -r '.subscription_url // empty' "$CONFIG" 2>/dev/null || true)
-    if [[ -z "$url" ]]; then
-      echo "❌ 未提供订阅地址，也未保存过订阅地址"
-      echo "   使用: $(basename "$0") set-subscription <url>"
-      echo "   或:   $(basename "$0") import-subscription <url>"
+  local subs
+  if [[ -n "$target_id" && "$target_id" != "--all" ]]; then
+    subs=$(jq -c ".subscriptions[] | select(.id==\"$target_id\")" "$CONFIG" 2>/dev/null || true)
+    if [[ -z "$subs" ]]; then
+      echo "❌ 未找到订阅: $target_id"
+      exit 1
+    fi
+  else
+    subs=$(jq -c '.subscriptions[]' "$CONFIG" 2>/dev/null || true)
+    if [[ -z "$subs" ]]; then
+      echo "❌ 尚未配置任何订阅，请使用 add-subscription 添加"
       exit 1
     fi
   fi
 
-  echo "📡 更新订阅..."
-  echo "  地址: ${url:0:60}..."
-
-  # Fetch subscription (needs Shadowrocket UA)
-  local raw_content
-  raw_content=$(curl -sL \
-    -A "Shadowrocket/2050 CFNetwork/1568.100.1 Darwin/24.0.0" \
-    --connect-timeout 15 \
-    --max-time 30 \
-    "$url" 2>/dev/null)
-
-  if [[ -z "$raw_content" ]]; then
-    echo "❌ 获取订阅失败: 返回为空"
-    exit 1
-  fi
-
-  # Decode base64
-  local decoded
-  decoded=$(echo "$raw_content" | base64 -D 2>/dev/null || echo "$raw_content" | base64 -d 2>/dev/null || true)
-
-  if [[ -z "$decoded" ]]; then
-    echo "❌ base64 解码失败"
-    exit 1
-  fi
-
-  # Check for access denied
-  if echo "$decoded" | head -1 | grep -q "blocked@127.0.0.1"; then
-    echo "❌ 订阅访问受限 (可能需要更新订阅地址)"
-    echo "  响应: $(echo "$decoded" | head -1 | sed 's/.*#//' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))' 2>/dev/null || echo "$decoded")"
-    exit 1
-  fi
-
-  # Parse lines
-  local total_lines=0
-  local filtered_count=0
-  local imported_count=0
-  local skipped_count=0
-
-  # Save subscription URL
-  _write_config ". + {subscription_url: \"$url\"}"
-
-  # Remove old subscription nodes (but preserve manually added ones + active node)
   local active_id
   active_id=$(jq -r '.active_node // ""' "$CONFIG" 2>/dev/null || echo "")
-  _write_config 'del(.nodes[] | select(.source=="subscription"))'
 
-  # Re-add active node if it was a subscription node (preserve current connection)
-  # (it was already deleted above, but we'll re-import it if it matches)
+  while IFS= read -r sub_json; do
+    [[ -z "$sub_json" ]] && continue
+    local s_id s_name s_url s_filter
+    s_id=$(echo "$sub_json" | jq -r '.id')
+    s_name=$(echo "$sub_json" | jq -r '.name')
+    s_url=$(echo "$sub_json" | jq -r '.url')
+    s_filter=$(echo "$sub_json" | jq -r '.filter // ""')
 
-  echo "  解析节点..."
+    echo "📡 正在拉取订阅: $s_name ($s_id)..."
+    echo "   URL: ${s_url:0:60}..."
 
-  while IFS= read -r line; do
-    line=$(echo "$line" | tr -d '\r')
-    [[ -z "$line" ]] && continue
+    local raw_content
+    raw_content=$(curl -sL \
+      -A "Shadowrocket/2050 CFNetwork/1568.100.1 Darwin/24.0.0" \
+      --connect-timeout 15 \
+      --max-time 30 \
+      "$s_url" 2>/dev/null || true)
 
-    total_lines=$((total_lines + 1))
-
-    # Extract name from fragment for filtering
-    local node_name=""
-    if [[ "$line" == *"#"* ]]; then
-      local frag="${line##*#}"
-      node_name=$(_urldecode "$frag")
+    if [[ -z "$raw_content" ]]; then
+      echo "   ❌ 拉取失败: 返回内容为空"
+      continue
     fi
 
-    # Apply country filter
-    if [[ -n "$filter_country" ]]; then
-      if [[ "$node_name" != *"$filter_country"* ]]; then
-        skipped_count=$((skipped_count + 1))
+    local decoded
+    decoded=$(echo "$raw_content" | base64 -D 2>/dev/null || echo "$raw_content" | base64 -d 2>/dev/null || true)
+    if [[ -z "$decoded" ]]; then
+      echo "   ❌ base64 解码失败"
+      continue
+    fi
+
+    if echo "$decoded" | head -1 | grep -q "blocked@127.0.0.1"; then
+      echo "   ❌ 订阅访问受限 (可能需要更新 Token/URL)"
+      continue
+    fi
+
+    # Remove existing nodes of THIS subscription only
+    _write_config "del(.nodes[] | select(.source==\"$s_id\"))"
+
+    local total=0 imported=0 skipped=0
+    while IFS= read -r line; do
+      line=$(echo "$line" | tr -d '\r')
+      [[ -z "$line" ]] && continue
+      total=$((total + 1))
+
+      local node_name=""
+      if [[ "$line" == *"#"* ]]; then
+        node_name=$(_urldecode "${line##*#}")
+      fi
+
+      if [[ -n "$s_filter" && "$node_name" != *"$s_filter"* ]]; then
+        skipped=$((skipped + 1))
         continue
       fi
-      filtered_count=$((filtered_count + 1))
-    fi
 
-    # Import based on protocol
-    if [[ "$line" =~ ^trojan:// ]] || [[ "$line" =~ ^hysteria2:// ]]; then
-      cmd_import_trojan_url "$line" "subscription" 2>/dev/null && imported_count=$((imported_count + 1)) || true
-    else
-      local proto="${line%%://*}"
-      echo "  ⚠️  跳过不支持的协议: $proto (${node_name:-unnamed})"
-    fi
-  done <<< "$decoded"
+      if [[ "$line" =~ ^trojan:// ]] || [[ "$line" =~ ^hysteria2:// ]]; then
+        cmd_import_trojan_url "$line" "$s_id" >/dev/null 2>&1 && imported=$((imported + 1)) || true
+      fi
+    done <<< "$decoded"
 
-  # Update timestamp
-  local now
-  now=$(date +"%Y-%m-%d %H:%M:%S")
-  _write_config ". + {subscription_updated: \"$now\"}"
+    local now
+    now=$(date +"%Y-%m-%d %H:%M:%S")
+    _write_config "
+      (.subscriptions[] | select(.id==\"$s_id\")).updated_at = \"$now\"
+    "
 
-  echo ""
-  echo "✅ 订阅更新完成"
-  echo "  总节点: $total_lines"
-  if [[ -n "$filter_country" ]]; then
-    echo "  ${filter_country}节点: $filtered_count"
-  fi
-  echo "  已导入: $imported_count"
-  echo "  已跳过: $skipped_count (非${filter_country:-目标})"
-
-  # If active node was removed, warn
-  if [[ -n "$active_id" ]]; then
-    local still_exists
-    still_exists=$(jq -r ".nodes[] | select(.id==\"$active_id\") | .id" "$CONFIG" 2>/dev/null || true)
-    if [[ -z "$still_exists" ]]; then
-      echo ""
-      echo "⚠️  注意: 之前的活跃节点 ($active_id) 不在新订阅中"
-      echo "   请切换到新的节点"
-    fi
-  fi
+    echo "   ✅ $s_name 更新完成: 共 $total 节点，导入 $imported 个，跳过 $skipped 个"
+    echo ""
+  done <<< "$subs"
 }
 
-# ─── Main dispatch ───
+# ─── Latency Testing (Ping) ───
+
+cmd_ping() {
+  local node_id="$1"
+  local node
+  node=$(jq -e ".nodes[] | select(.id==\"$node_id\")" "$CONFIG" 2>/dev/null || true)
+  if [[ -z "$node" ]]; then
+    echo "{\"id\":\"$node_id\",\"latency_ms\":-1,\"error\":\"not found\"}"
+    exit 1
+  fi
+
+  python3 -c '
+import json, socket, time, sys
+
+node = json.loads("""'"$node"'""")
+host = node.get("server")
+port = int(node.get("server_port", 443))
+
+t0 = time.monotonic()
+try:
+    s = socket.create_connection((host, port), timeout=4)
+    ms = round((time.monotonic() - t0) * 1000)
+    s.close()
+except Exception:
+    ms = -1
+
+res = {"id": node["id"], "name": node.get("name",""), "latency_ms": ms}
+print(json.dumps(res, ensure_ascii=False))
+'
+}
+
+cmd_ping_all() {
+  python3 -c '
+import json, socket, time
+from concurrent.futures import ThreadPoolExecutor
+
+with open("'"$CONFIG"'") as f:
+    cfg = json.load(f)
+
+nodes = cfg.get("nodes", [])
+
+def test_node(node):
+    host = node.get("server")
+    port = int(node.get("server_port", 443))
+    t0 = time.monotonic()
+    try:
+        s = socket.create_connection((host, port), timeout=3)
+        ms = round((time.monotonic() - t0) * 1000)
+        s.close()
+    except Exception:
+        ms = -1
+    return {"id": node["id"], "latency_ms": ms}
+
+with ThreadPoolExecutor(max_workers=10) as executor:
+    results = list(executor.map(test_node, nodes))
+
+print(json.dumps(results, ensure_ascii=False))
+'
+}
+
+# ─── Main Dispatch ───
+
+_migrate_config
 
 case "${1:-help}" in
   status)  cmd_status ;;
@@ -695,29 +766,33 @@ case "${1:-help}" in
   test)    cmd_test ;;
   add)     cmd_add "${2:?需要节点 JSON}" ;;
   delete)  cmd_delete "${2:?需要节点 ID}" ;;
-  import-trojan-url) cmd_import_trojan_url "${2:?需要 trojan:// 或 hysteria2:// URL}" ;;
-  set-subscription)  cmd_set_subscription "${2:?需要订阅 URL}" ;;
-  subscription-info) cmd_subscription_info ;;
+  ping)    cmd_ping "${2:?需要节点 ID}" ;;
+  ping-all) cmd_ping_all ;;
+  import-trojan-url) cmd_import_trojan_url "${2:?需要 trojan:// 或 hysteria2:// URL}" "${3:-manual}" ;;
+  add-subscription)    cmd_add_subscription "${2:?名称}" "${3:?URL}" "${4:-日本}" ;;
+  remove-subscription) cmd_remove_subscription "${2:?需要订阅 ID}" ;;
+  list-subscriptions)  cmd_list_subscriptions ;;
   import-subscription) shift; cmd_import_subscription "$@" ;;
   help|*)
-    echo "Lima Proxy Switch v2.0 — 管理 Lima mini-work VM 代理"
+    echo "Lima Proxy Switch v3.0 — 管理 Lima mini-work VM 代理"
     echo ""
     echo "用法: $(basename "$0") <command> [args]"
     echo ""
-    echo "命令:"
-    echo "  status                        查看当前代理状态和连通性"
-    echo "  list                          列出所有已保存节点"
-    echo "  switch <id>                   切换到指定节点"
-    echo "  test                          测试代理连通性"
-    echo "  add '<json>'                  添加节点 (JSON)"
-    echo "  delete <id>                   删除节点"
-    echo "  import-trojan-url <url>       导入 trojan:// 或 hysteria2:// 链接"
+    echo "节点操作:"
+    echo "  status                         查看当前代理状态和连通性"
+    echo "  list                           列出所有已保存节点 (按订阅分组)"
+    echo "  switch <id>                    切换到指定节点"
+    echo "  ping <id>                      测试单节点延迟 (毫秒)"
+    echo "  ping-all                       并行测试全部节点延迟"
+    echo "  test                           测试当前代理外网连通性"
+    echo "  add '<json>'                   手动添加节点 (JSON)"
+    echo "  delete <id>                    删除节点"
     echo ""
     echo "订阅管理:"
-    echo "  set-subscription <url>        保存订阅地址"
-    echo "  import-subscription [url]     更新订阅 (只导入日本节点)"
-    echo "  import-subscription --all     更新订阅 (导入全部节点)"
-    echo "  subscription-info             查看订阅信息"
+    echo "  add-subscription <名称> <URL> [过滤关键词]   添加订阅"
+    echo "  remove-subscription <sub-id>               删除订阅及对应节点"
+    echo "  list-subscriptions                         列出所有订阅"
+    echo "  import-subscription [sub-id]               更新指定订阅或所有订阅"
     echo ""
     echo "配置文件: $CONFIG"
     ;;
