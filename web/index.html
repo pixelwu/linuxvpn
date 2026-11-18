@@ -465,7 +465,8 @@
     <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
       <button class="btn btn-sm btn-ghost" onclick="refreshStatus()" id="btnRefreshStatus">🔄 刷新状态</button>
       <button class="btn btn-sm btn-ghost" onclick="testProxy()" id="btnTest">🧪 测试连通</button>
-      <button class="btn btn-sm btn-sub" onclick="macProxyEnable()" id="btnMacEnable" title="开启 Mac 宿主代理 (支持 Antigravity + 浏览器分流)">🔗 一键开启 Mac 代理</button>
+      <button class="btn btn-sm btn-sub" onclick="macProxyReconnect()" id="btnMacReconnect" title="重新选择当前节点并重建 Mac 代理共享 (断连一键自愈)">⚡ 重选当前并重连</button>
+      <button class="btn btn-sm btn-sub" onclick="macProxyEnable()" id="btnMacEnable" title="开启 Mac 宿主代理 (支持 Antigravity + 浏览器分流)">🔗 开启 Mac 代理</button>
       <button class="btn btn-sm btn-ghost" onclick="macProxyDisable()" id="btnMacDisable">🛑 关闭 Mac 代理</button>
       <button class="btn btn-sm btn-danger" onclick="macProxyPanic()" id="btnMacPanic" style="margin-left:auto">🚨 彻底恢复直连</button>
     </div>
@@ -1441,6 +1442,38 @@ async function macProxyPanic() {
     btn.textContent = '🚨 彻底恢复直连';
   }
 }
+
+async function macProxyReconnect() {
+  const btn = document.getElementById('btnMacReconnect');
+  btn.disabled = true;
+  btn.textContent = '⏳ 自愈重连中...';
+  appendLog('⚡ 正在执行当前节点重选与 Mac 代理共享重置 (自愈)...');
+  try {
+    const res = await runCommand('~/.lima-proxy/lima-proxy-reconnect.sh 2>&1', 45000);
+    appendLog(res);
+    await loadConfig();
+    await refreshStatus();
+    showToast('⚡ 重选当前节点并重连成功！');
+  } catch (e) {
+    appendLog('❌ 重连失败: ' + e.message);
+    showToast('❌ 重连失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ 重选当前并重连';
+  }
+}
+
+// ─── Auto Sync on Focus / Visibility ───
+window.addEventListener('focus', () => {
+  loadConfig();
+  refreshStatus();
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loadConfig();
+    refreshStatus();
+  }
+});
 
 // ─── Init ───
 loadConfig();
