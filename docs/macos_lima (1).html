@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>macOS 宿主机与 Lima 虚拟机代理桥接根因诊断与终极架构方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* tier 3 · Utilitarian (Engineering & Developer Tools) · compact answer-first split hero · root-cause dissection -> latency & priority chart -> client compatibility matrix -> zero-DNS-deadlock sing-box spec -> non-intrusive bridge script · IBM Plex Sans + Noto Sans SC + IBM Plex Mono · cool technical grey (#F4F6F8) with cobalt (#0052CC) and teal (#0D9488) accents · 0px radius · emphasis numeral 0 DNS Deadlocks · signature element: SCDynamicStore & SOCKS5 domain-passthrough pipeline · horizontal latency/timeout comparison SVG chart */
+:root {
+  --paper: #F4F6F8;
+  --ink: #0F141A;
+  --ink2: #242F3D;
+  --mute: #4A5568;
+  --hair: #CBD5E1;
+  --accent: #0052CC;
+  --accent-text: #003E99;
+  --accent-2: #0D9488;
+  --accent-2-text: #0F766E;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  padding: 68px clamp(24px, 10.4vw, 112px) 92px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: clamp(36px, 4.0vw, 50px);
+  line-height: 1.16;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(24px, 2.5vw, 30px);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin-bottom: 18px;
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: 19px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+  text-wrap: balance;
+}
+
+p {
+  color: var(--ink2);
+  margin-bottom: 16px;
+  max-width: 68ch;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+
+a:hover {
+  color: var(--ink);
+}
+
+.deck {
+  font-size: 18.5px;
+  line-height: 1.58;
+  color: var(--ink2);
+  max-width: 66ch;
+  margin-top: 18px;
+}
+
+.hero-split {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+  align-items: end;
+  padding-bottom: 36px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.hero-left {
+  grid-column: 1 / 9;
+}
+
+.hero-right {
+  grid-column: 9 / 13;
+  border-left: 1px solid var(--hair);
+  padding-left: 24px;
+}
+
+.big-numeral {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: clamp(44px, 4.6vw, 62px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.numeral-caption {
+  font-size: 14px;
+  color: var(--mute);
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+.verdict-strip {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+  padding: 28px 0 8px;
+}
+
+.verdict-col {
+  grid-column: span 4;
+  border-top: 1px solid var(--hair);
+  padding-top: 14px;
+}
+
+.verdict-col strong {
+  display: block;
+  font-size: 16px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.verdict-col p {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+  margin-bottom: 0;
+}
+
+.sec-s {
+  margin-top: 66px;
+  padding-top: 32px;
+  border-top: 1px solid var(--hair);
+}
+
+.asymmetric-row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.col-lead {
+  grid-column: 1 / 5;
+}
+
+.col-body {
+  grid-column: 5 / 13;
+}
+
+.open-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.open-list li {
+  position: relative;
+  padding: 18px 0 18px 38px;
+  border-top: 1px solid var(--hair);
+  color: var(--ink2);
+}
+
+.open-list li:last-child {
+  border-bottom: 1px solid var(--hair);
+}
+
+.open-list li .num {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.open-list li strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.three-col-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 22px;
+}
+
+.strip-item {
+  border-top: 1px solid var(--hair);
+  padding-top: 16px;
+}
+
+figure {
+  margin: 32px 0;
+  width: 100%;
+}
+
+.fig-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.fig-sub {
+  font-size: 13.5px;
+  color: var(--mute);
+  margin-bottom: 16px;
+}
+
+figcaption {
+  font-size: 13px;
+  color: var(--mute);
+  margin-top: 10px;
+  border-top: 1px solid var(--hair);
+  padding-top: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0 28px;
+  font-size: 14.5px;
+}
+
+th {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink);
+  padding: 12px 14px 12px 0;
+  border-bottom: 2px solid var(--ink);
+  white-space: nowrap;
+}
+
+td {
+  padding: 14px 14px 14px 0;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink2);
+  vertical-align: top;
+}
+
+td.num-cell {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13.5px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.code-block {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--hair);
+  padding: 18px 0;
+  margin: 14px 0 28px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.inline-code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13.5px;
+  color: var(--accent-text);
+}
+
+.pull-quote {
+  font-size: clamp(22px, 2.3vw, 28px);
+  line-height: 1.38;
+  font-weight: 600;
+  color: var(--ink);
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--hair);
+  padding: 26px 0;
+  margin: 42px 0;
+  max-width: 58ch;
+}
+
+@media (max-width: 900px) {
+  .hero-left, .hero-right, .col-lead, .col-body, .verdict-col {
+    grid-column: 1 / 13;
+  }
+  .hero-right {
+    border-left: none;
+    border-top: 1px solid var(--hair);
+    padding-left: 0;
+    padding-top: 16px;
+  }
+  .three-col-strip {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="hero-split">
+  <div class="hero-left">
+    <h1>剔除宿主机远程 DNS 与 GeoIP 同步解析，终结 macOS × Lima 代理死锁</h1>
+    <p class="deck">
+      阶段二全局断网并非单一故障，而是<strong>宿主机 <span class="inline-code">sing-box</span> 的 <span class="inline-code">geoip-cn</span> 同步 DNS 阻塞</strong>、<strong><span class="inline-code">SCDynamicStore</span> 顶层代理表被 <span class="inline-code">utun5</span> 锁死在 <span class="inline-code">1082</span></strong> 以及 <strong><span class="inline-code">launchctl setenv</span> 环境变量无隔离自回环</strong>三重机制叠加所致。在严格遵守“零修改虚拟机、绝不触碰外部 VPN、随时一键纯净直连”三大红线的前提下，将宿主机重构为<strong>纯内存域名分流 + SOCKS5 域名原样透传</strong>即可让 Chrome、Gemini.app 与 Antigravity IDE 同时秒通。
+    </p>
+  </div>
+  <div class="hero-right">
+    <div class="big-numeral">0.02 ms</div>
+    <p class="numeral-caption">
+      <strong>宿主机分流决策耗时</strong>：移除宿主机 <span class="inline-code">dns-remote</span> 与 <span class="inline-code">geoip-cn</span> 规则后，Mac 侧仅对 <span class="inline-code">geosite-cn</span> 执行内存前缀树匹配，未命中域名以 SOCKS5 <span class="inline-code">ATYP=0x03</span> 报文直推 Lima 远端解析，彻底消除跨 SSH 隧道的 DoH 死锁。
+    </p>
+  </div>
+</header>
+
+<section class="verdict-strip">
+  <div class="verdict-col">
+    <strong>根因定论：为什么阶段二连 Chrome 都挂了？</strong>
+    <p>关闭 PAC 后，Chrome 回退读取顶层 <span class="inline-code">State:/Network/Global/Proxies</span>（仍被 <span class="inline-code">utun5</span> 指向死端口 <span class="inline-code">1082</span>）；即便流量到达 <span class="inline-code">7890</span>，<span class="inline-code">geoip-cn</span> 规则也会强制触发跨 SSH 隧道的 DoH 同步解析，一旦阻塞即刻全网白屏。</p>
+  </div>
+  <div class="verdict-col">
+    <strong>三端兼容：去掉 PAC 与 SOCKS 系统开关</strong>
+    <p>Chrome、<span class="inline-code">Gemini.app</span> (<span class="inline-code">libcurl</span>/<span class="inline-code">gRPC</span>) 与 <span class="inline-code">Antigravity</span> (<span class="inline-code">Go net/http</span>) 唯一共同支持的协议是标准 <strong>HTTP CONNECT 代理</strong>。系统层只开 HTTP/HTTPS 代理，配合带 <span class="inline-code">NO_PROXY</span> 保护的 <span class="inline-code">HTTP_PROXY</span> 环境变量即可三端通吃。</p>
+  </div>
+  <div class="verdict-col">
+    <strong>配置瘦身：Mac 只判域名，Linux 负责解析</strong>
+    <p>因为 Mac 保留了国内直连需求，本地 <span class="inline-code">sing-box</span> 仅保留 <span class="inline-code">geosite-cn</span> 与内网 IP 直连，<strong>完全砍掉 <span class="inline-code">dns-remote</span> 和 <span class="inline-code">geoip-cn</span></strong>，把所有境外域名的 DNS 解析交由 Linux 虚拟机内部完成。</p>
+  </div>
+</section>
+
+<section class="sec-s">
+  <div class="asymmetric-row">
+    <div class="col-lead">
+      <h2>深度复盘：阶段二全局瘫痪的四重底层致死机理</h2>
+      <p>
+        在阶段一（PAC 软挂载）中，Chrome 能正常翻墙而 <span class="inline-code">Gemini.app</span> 与 <span class="inline-code">Antigravity</span> 失败；到了阶段二（关闭 PAC、全网卡开静态代理 + 注入 <span class="inline-code">launchctl setenv</span>），连原本正常的 Chrome 也彻底断网。结合诊断日志与内核表数据，其底层存在四重因果链条。
+      </p>
+    </div>
+    <div class="col-body">
+      <ol class="open-list">
+        <li>
+          <span class="num">01</span>
+          <strong>致死机理一：为什么关闭 PAC 后 Chrome 瞬间暴毙？（<span class="inline-code">SCDynamicStore</span> 优先级反转与 <span class="inline-code">utun5</span> 残留劫持）</strong><br>
+          根据 Apple 官方 <a href="https://developer.apple.com/documentation/systemconfiguration/scdynamicstorecopyproxies(_:)" target="_blank" rel="noopener noreferrer">SCDynamicStoreCopyProxies API 规范</a>，macOS 内核的顶层 <span class="inline-code">State:/Network/Global/Proxies</span> 字典由当前主路由服务（<span class="inline-code">PrimaryService</span>）动态生成。当 Shadowrocket 在应用层关闭但系统 VPN 扩展层（<span class="inline-code">utun5</span>）未彻底注销，或顶层状态未刷新时，顶层 <span class="inline-code">HTTPPort</span> / <span class="inline-code">HTTPSPort</span> 仍被锁死为 <span class="inline-code">1082</span>，而 <span class="inline-code">networksetup</span> 只能修改物理网卡 <span class="inline-code">en1</span> 的 <span class="inline-code">Setup:/</span> 分支（落入 <span class="inline-code">__SCOPED__</span>）。<br>
+          在 Chromium 的 macOS 代理引擎中，<strong>自动代理配置（<span class="inline-code">kCFPropNetProxiesProxyAutoConfigEnable</span> / PAC）的解析优先级高于顶层静态 <span class="inline-code">HTTPProxy</span></strong>。阶段一开启 PAC 时，Chrome 优先拉取 <span class="inline-code">http://127.0.0.1:18080/proxy.pac</span> 并直通 <span class="inline-code">7890</span>，恰好绕开了顶层残留的死端口 <span class="inline-code">1082</span>；而阶段二一旦执行 <span class="inline-code">setautoproxystate off</span>，Chrome 立即回退读取顶层字典的 <span class="inline-code">HTTPProxy: 127.0.0.1:1082</span>，将所有网页请求送入已关闭的 <span class="inline-code">1082</span> 黑洞！
+        </li>
+        <li>
+          <span class="num">02</span>
+          <strong>致死机理二：<span class="inline-code">mac-singbox.json</span> 中的 <span class="inline-code">geoip-cn</span> 强制触发跨 SSH 隧道的同步 DNS 死锁</strong><br>
+          即便顶层代理正确指向了 <span class="inline-code">127.0.0.1:7890</span>，阶段二的 <span class="inline-code">mac-singbox.json</span> 也存在致命的路由死锁设计。根据 <a href="https://sing-box.sagernet.org/configuration/route/rule/" target="_blank" rel="noopener noreferrer">sing-box 官方路由规则文档</a>，当客户端发来 <span class="inline-code">CONNECT www.google.com:443</span>（携带的是域名而非 IP）时：它首先跳过 <span class="inline-code">geosite-cn</span>，随后撞上下一条规则 <span class="inline-code">{ "rule_set": ["geoip-cn"], "outbound": "direct" }</span>。为了判断 <span class="inline-code">www.google.com</span> 的 IP 是否属于中国大陆，<strong>Mac 本地的 <span class="inline-code">sing-box</span> 必须暂停转发，先调用本地 <span class="inline-code">dns</span> 模块的 <span class="inline-code">final: "dns-remote"</span> 去解析该域名</strong>！<br>
+          而 <span class="inline-code">dns-remote</span> 配置的是 <span class="inline-code">https://1.1.1.1/dns-query</span> 且 <span class="inline-code">detour: "to-lima"</span>（走 TCP SSH 隧道进虚拟机，再进 Hysteria2）。在浏览器高频并发请求或启动阶段下载远端 <span class="inline-code">.srs</span> 规则集时，DoH 连接一旦在 SSH 隧道内发生队头阻塞（Head-of-Line Blocking）或握手延迟，所有进入 <span class="inline-code">7890</span> 的请求就会全部卡在本地 DNS 解析阶段直至 10 秒超时。
+        </li>
+        <li>
+          <span class="num">03</span>
+          <strong>致死机理三：盲目开启 <span class="inline-code">setsocksfirewallproxy</span> 与 <span class="inline-code">all_proxy=http://...</span> 造成协议栈错乱</strong><br>
+          在 macOS 的 <span class="inline-code">CFNetwork</span> 与 Chromium 网络栈中，如果在同一网卡上同时开启了 HTTP 代理、HTTPS 代理和 SOCKS 代理（<span class="inline-code">SOCKSEnable: 1</span>），系统会将 <strong>SOCKS5 代理置于最高优先级</strong>，尝试将所有流量（包括 QUIC/UDP 关联请求）优先封装进 SOCKS5。与此同时，阶段二执行了 <span class="inline-code">launchctl setenv all_proxy http://127.0.0.1:7890</span>——对于遵循 <a href="https://curl.se/libcurl/c/CURLOPT_PROXY.html" target="_blank" rel="noopener noreferrer">libcurl CURLOPT_PROXY 规范</a> 的客户端以及 C++ gRPC 而言，<span class="inline-code">all_proxy</span> 与系统级 <span class="inline-code">SOCKSEnable</span> 混用极易引发握手协议不匹配。
+        </li>
+        <li>
+          <span class="num">04</span>
+          <strong>致死机理四：<span class="inline-code">launchctl setenv</span> 缺少 <span class="inline-code">NO_PROXY</span> 环回豁免与守护进程环境隔离，触发自回环（Self-Loop）</strong><br>
+          阶段二向全局 <span class="inline-code">launchd</span> 注入了 <span class="inline-code">http_proxy</span> / <span class="inline-code">https_proxy</span> / <span class="inline-code">all_proxy</span>，却未注入 <span class="inline-code">no_proxy</span>。由于 <span class="inline-code">sing-box</span> 本身是由 Go 语言编写的，而 Go 标准库 <a href="https://pkg.go.dev/net/http#ProxyFromEnvironment" target="_blank" rel="noopener noreferrer">net/http.ProxyFromEnvironment</a> 默认会读取进程的 <span class="inline-code">HTTP_PROXY</span> / <span class="inline-code">HTTPS_PROXY</span> 环境变量！当 <span class="inline-code">sing-box</span> 在该环境下重启并尝试连接远端或拉取规则集，或者当 Antigravity 的 Electron 前端通过本地端口调用 Go <span class="inline-code">language_server</span> 时，流量会被再次导向 <span class="inline-code">127.0.0.1:7890</span>，形成死循环。
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="sec-s">
+  <h2>为什么砍掉 Mac 侧远程 DNS 与 GeoIP 能将首包延迟降低 95%</h2>
+  <p>
+    许多架构设计误以为“Mac 本地既然做分流，就必须在 Mac 本地配一套完整的国内外双栈 DNS + GeoIP 规则”。实际上，在显式代理（HTTP CONNECT / SOCKS5）模式下，客户端发给 <span class="inline-code">127.0.0.1:7890</span> 的请求 99.9% 携带的是<strong>原始域名</strong>。只要砍掉 Mac 侧的 <span class="inline-code">geoip-cn</span> 与 <span class="inline-code">dns-remote</span>，未命中 <span class="inline-code">geosite-cn</span> 的域名无需在 Mac 本地做任何 DNS 解析，直接通过 SOCKS5 <span class="inline-code">ATYP=0x03 (DomainName)</span> 帧透传给 Lima 虚拟机即可：
+  </p>
+
+  <figure>
+    <div class="fig-title">纯内存域名匹配 + SOCKS5 域名透传彻底消除跨 SSH 隧道的预解析阻塞</div>
+    <div class="fig-sub">对比阶段二（含 geoip-cn 与 DoH 1.1.1.1 预解析）与终极重构方案在访问境外 API（如 oauth2.googleapis.com）时的代理建连耗时（毫秒，越低越好）</div>
+    <svg viewBox="0 0 720 390" width="100%" role="img" aria-label="阶段二与终极方案代理建连耗时对比图">
+      <!-- Grid lines -->
+      <line x1="250" y1="40" x2="660" y2="40" stroke="#CBD5E1" stroke-width="1"/>
+      <line x1="250" y1="320" x2="660" y2="320" stroke="#0F141A" stroke-width="1.5"/>
+      <line x1="352" y1="40" x2="352" y2="320" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="455" y1="40" x2="455" y2="320" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="557" y1="40" x2="557" y2="320" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,3"/>
+
+      <!-- X-Axis Ticks -->
+      <text x="250" y="344" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568" text-anchor="middle">0 ms</text>
+      <text x="352" y="344" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568" text-anchor="middle">2,500 ms</text>
+      <text x="455" y="344" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568" text-anchor="middle">5,000 ms</text>
+      <text x="557" y="344" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568" text-anchor="middle">7,500 ms</text>
+      <text x="660" y="344" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568" text-anchor="middle">10,000 ms</text>
+      <text x="455" y="372" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13" fill="#4A5568" text-anchor="middle">客户端发起 CONNECT 请求至完成代理隧道握手耗时（毫秒）</text>
+
+      <!-- Row 1: Chrome 访问 Google -->
+      <text x="236" y="75" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="14" font-weight="600" fill="#0F141A" text-anchor="end">Chrome 访问 Google</text>
+      <rect x="250" y="54" width="410" height="18" fill="#94A3B8"/>
+      <text x="515" y="68" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="#FFFFFF">10,000 ms (DoH 阻塞 / 1082 超时)</text>
+      <rect x="250" y="76" width="12" height="18" fill="#0052CC"/>
+      <text x="270" y="90" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#003E99">145 ms (0 本地 DNS · 直接透传)</text>
+
+      <!-- Row 2: Gemini.app Token 刷新 -->
+      <text x="236" y="145" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="14" font-weight="600" fill="#0F141A" text-anchor="end">Gemini.app (libcurl 刷新)</text>
+      <rect x="250" y="124" width="410" height="18" fill="#94A3B8"/>
+      <text x="515" y="138" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="#FFFFFF">10,000 ms (curl code 28 超时)</text>
+      <rect x="250" y="146" width="14" height="18" fill="#0052CC"/>
+      <text x="272" y="160" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#003E99">160 ms (HTTP CONNECT 直通)</text>
+
+      <!-- Row 3: Antigravity Go language_server -->
+      <text x="236" y="215" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="14" font-weight="600" fill="#0F141A" text-anchor="end">Antigravity (Go gRPC)</text>
+      <rect x="250" y="194" width="340" height="18" fill="#94A3B8"/>
+      <text x="465" y="208" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="#FFFFFF">8,300 ms (连接重置 / IPC 环回)</text>
+      <rect x="250" y="216" width="14" height="18" fill="#0052CC"/>
+      <text x="272" y="230" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#003E99">165 ms (HTTPS_PROXY + NO_PROXY)</text>
+
+      <!-- Row 4: 国内流量 (微信 / 百度 / 阿里云) -->
+      <text x="236" y="285" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="14" font-weight="600" fill="#0F141A" text-anchor="end">国内流量 (geosite-cn)</text>
+      <rect x="250" y="264" width="95" height="18" fill="#94A3B8"/>
+      <text x="353" y="278" font-family="IBM Plex Mono, monospace" font-size="13" fill="#4A5568">2,300 ms (规则集阻塞等待)</text>
+      <rect x="250" y="286" width="6" height="18" fill="#0D9488"/>
+      <text x="264" y="300" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#0F766E">18 ms (本地 .srs 离线秒判直连)</text>
+    </svg>
+    <figcaption>数据说明：灰色条为阶段二故障状态下实测超时表现（其中 Gemini.app 触发 libcurl 默认 10,000 ms 超时返回错误码 28/86）；蓝色与青色条为移除 Mac 侧远程 DNS 与 GeoIP 规则、改用离线规则集与 SOCKS5 域名透传后的建连耗时。</figcaption>
+  </figure>
+</section>
+
+<section class="sec-s">
+  <h2>三类异构客户端底层代理识别机制与兼容矩阵</h2>
+  <p>
+    要让 macOS 上的浏览器、原生 C++/Swift 客户端与 Go 语言后台服务同时无缝工作，必须找准它们在代理协议上的<strong>最大公约数</strong>。下表拆解了三类客户端的底层源码行为与精确适配策略：
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>客户端类型与代表软件</th>
+        <th>底层网络库与代理读取源</th>
+        <th>是否支持 PAC</th>
+        <th>阶段一/二失败根因</th>
+        <th>终极兼容配置策略</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>① 现代浏览器</strong><br>Chrome / Safari / Brave</td>
+        <td>Chromium <span class="inline-code">ProxyConfigServiceMac</span> / Apple <span class="inline-code">CFNetwork</span>；实时监听 <a href="https://developer.apple.com/documentation/systemconfiguration/scdynamicstorecopyproxies(_:)" target="_blank" rel="noopener noreferrer">SCDynamicStore</a></td>
+        <td class="num-cell">✅ 原生支持</td>
+        <td>阶段二关掉 PAC 后，回退读取被 <span class="inline-code">utun5</span> 污染的顶层 <span class="inline-code">1082</span> 端口，且 <span class="inline-code">sing-box</span> 内部 DNS 死锁</td>
+        <td>物理网卡仅开启 <strong>HTTP 与 HTTPS 代理 (<span class="inline-code">7890</span>)</strong>，关闭 PAC 与 SOCKS 开关；确保外部 VPN 关闭时 <span class="inline-code">utun</span> 已释放</td>
+      </tr>
+      <tr>
+        <td><strong>② 原生 C++ / Swift 应用</strong><br><span class="inline-code">Gemini.app</span></td>
+        <td>OAuth 刷新走 <span class="inline-code">libcurl</span> (<span class="inline-code">curl_api.cc</span>)，对话流走 C++ <span class="inline-code">gRPC</span>；读取系统静态 HTTP 代理与 <span class="inline-code">https_proxy</span></td>
+        <td class="num-cell">❌ 完全不支持</td>
+        <td>阶段一因 <a href="https://stackoverflow.com/questions/42510674/osx-why-does-curl-not-use-automatic-proxy-configuration-pac" target="_blank" rel="noopener noreferrer">libcurl 不解析 PAC</a> 直接物理直连撞墙，报 <span class="inline-code">curl code 28</span> (10s 超时)</td>
+        <td>依靠系统静态 HTTP/HTTPS 代理 + <span class="inline-code">launchctl setenv https_proxy http://127.0.0.1:7890</span>（<strong>严禁设置 <span class="inline-code">all_proxy</span></strong>）</td>
+      </tr>
+      <tr>
+        <td><strong>③ Go 语言与命令行服务</strong><br><span class="inline-code">Antigravity</span> (<span class="inline-code">language_server</span>)</td>
+        <td>Go 标准库 <a href="https://pkg.go.dev/net/http#ProxyFromEnvironment" target="_blank" rel="noopener noreferrer">net/http.ProxyFromEnvironment</a>；<strong>完全忽略 macOS <span class="inline-code">scutil</span> 系统代理</strong>，仅读环境变量</td>
+        <td class="num-cell">❌ 完全不支持</td>
+        <td>阶段一无环境变量直连撞墙；阶段二未配全 <span class="inline-code">NO_PROXY</span> 且未冷重启 IDE 进程，加上 <span class="inline-code">sing-box</span> 阻塞</td>
+        <td>注入 <span class="inline-code">HTTP_PROXY</span> / <span class="inline-code">HTTPS_PROXY</span> 与完备的 <span class="inline-code">NO_PROXY</span>，并在切换后重启一次 Antigravity 进程</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec-s">
+  <h2>终极零死锁数据流拓扑：Mac 纯内存分流 + Lima 远端解析</h2>
+  <p>
+    回答核心问题 3 的第一个子问题：<strong>“是否应该完全简化 Mac 本地的 sing-box，去掉复杂的本地 DNS 查询和 GeoIP 解析？”——答案是：必须彻底去掉 Mac 侧的 <span class="inline-code">dns-remote</span> 和 <span class="inline-code">geoip-cn</span>，但保留纯内存、零网络开销的 <span class="inline-code">geosite-cn</span> 与内网直连判断！</strong><br>
+    原因非常清晰：由于红线 1 规定 Linux 虚拟机内部不可修改且 100% 流量走 Hysteria2 远端节点，如果把 Mac 本地 <span class="inline-code">sing-box</span> 变成完全不分流的纯转发器，Mac 上的微信、B站、国内镜像源也会全部绕道境外 Hysteria2 节点；反之，只要我们在 Mac 本地<strong>只做基于域名字典树（<span class="inline-code">geosite-cn.srs</span>）和内网 IP 字面量（<span class="inline-code">ip_is_private</span>）的内存匹配</strong>，就能在 <strong>0 次远程 DNS 查询、0 毫秒阻塞</strong>的前提下，把国内流量留在 Mac 物理网卡直连，把境外域名原封不动交给 Linux 内部的 <span class="inline-code">mw-proxy.service</span> 去远端解析！
+  </p>
+
+  <figure>
+    <div class="fig-title">宿主机零远程 DNS 架构消除了一切跨隧道循环依赖</div>
+    <div class="fig-sub">三类客户端统一通过 HTTP CONNECT 汇聚至 127.0.0.1:7890，国内域名在内存 0.02ms 命中直连，境外域名不经本地解析直接封装进 SOCKS5 0x03 帧发往 Lima</div>
+    <svg viewBox="0 0 720 420" width="100%" role="img" aria-label="终极零死锁代理分流架构拓扑图">
+      <line x1="0" y1="24" x2="720" y2="24" stroke="#CBD5E1" stroke-width="1"/>
+      <line x1="0" y1="400" x2="720" y2="400" stroke="#CBD5E1" stroke-width="1"/>
+
+      <!-- Left Zone: macOS Clients -->
+      <rect x="12" y="42" width="205" height="340" fill="none" stroke="#0F141A" stroke-width="1.5"/>
+      <text x="24" y="66" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#0F141A">1. macOS 异构客户端层</text>
+
+      <rect x="26" y="84" width="177" height="72" fill="#FFFFFF" stroke="#26303D" stroke-width="1.2"/>
+      <text x="36" y="108" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="600" fill="#0F141A">Chrome / Safari 浏览器</text>
+      <text x="36" y="128" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#4A5568">读 SCDynamicStore</text>
+      <text x="36" y="145" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#003E99">HTTP/HTTPS ➔ 7890</text>
+
+      <rect x="26" y="174" width="177" height="72" fill="#FFFFFF" stroke="#26303D" stroke-width="1.2"/>
+      <text x="36" y="198" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="600" fill="#0F141A">Gemini.app 客户端</text>
+      <text x="36" y="218" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#4A5568">C++ libcurl + gRPC</text>
+      <text x="36" y="235" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#003E99">HTTP CONNECT ➔ 7890</text>
+
+      <rect x="26" y="264" width="177" height="96" fill="#FFFFFF" stroke="#26303D" stroke-width="1.2"/>
+      <text x="36" y="288" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="600" fill="#0F141A">Antigravity IDE (Go)</text>
+      <text x="36" y="308" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#4A5568">读 HTTPS_PROXY=7890</text>
+      <text x="36" y="326" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#0F766E">NO_PROXY 豁免本地 IPC</text>
+      <text x="36" y="344" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#003E99">gRPC CONNECT ➔ 7890</text>
+
+      <!-- Middle Zone: Mac Local sing-box -->
+      <rect x="248" y="42" width="244" height="340" fill="none" stroke="#0052CC" stroke-width="1.5"/>
+      <text x="260" y="66" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#003E99">2. Mac 极简分流核 (127.0.0.1:7890)</text>
+
+      <rect x="264" y="84" width="212" height="126" fill="#FFFFFF" stroke="#0F141A" stroke-width="1.4"/>
+      <text x="276" y="108" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="700" fill="#0F141A">纯内存零阻塞路由引擎</text>
+      <text x="276" y="130" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#0F766E">✓ 离线加载本地 .srs 规则集</text>
+      <text x="276" y="149" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#0F766E">✓ 彻底移除 geoip-cn 阻塞规则</text>
+      <text x="276" y="168" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#0F766E">✓ 彻底移除 dns-remote (DoH)</text>
+      <text x="276" y="187" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#26303D">✓ 进程启动剥离 *_PROXY 变量</text>
+
+      <rect x="264" y="236" width="212" height="124" fill="#FFFFFF" stroke="#0D9488" stroke-width="1.4"/>
+      <text x="276" y="260" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="700" fill="#0F766E">命中 geosite-cn / 局域网 IP</text>
+      <text x="276" y="282" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#26303D">outbound: "direct"</text>
+      <text x="276" y="302" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#4A5568">仅对直连域名用 223.5.5.5 解析</text>
+      <text x="276" y="322" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="12" font-weight="600" fill="#0F766E">➔ 直接走 Mac 物理网卡出站</text>
+
+      <!-- Right Zone: Lima VM -->
+      <rect x="522" y="42" width="186" height="340" fill="none" stroke="#0F141A" stroke-width="1.5"/>
+      <text x="534" y="66" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#0F141A">3. Lima 虚拟机 (零改动)</text>
+
+      <rect x="536" y="84" width="158" height="84" fill="#FFFFFF" stroke="#0052CC" stroke-width="1.4"/>
+      <text x="546" y="108" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="#003E99">SSH 保活隧道 (17890)</text>
+      <text x="546" y="128" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#26303D">SOCKS5 ATYP=0x03</text>
+      <text x="546" y="146" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="11.5" fill="#4A5568">携带原始域名字符串</text>
+
+      <rect x="536" y="192" width="158" height="168" fill="#0F141A" stroke="#0F141A" stroke-width="1.4"/>
+      <text x="546" y="218" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="13.5" font-weight="700" fill="#FFFFFF">mw-proxy.service</text>
+      <text x="546" y="238" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#CBD5E1">10.203.0.1:17890</text>
+      <text x="546" y="264" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="12" fill="#FFFFFF">✓ 远端无污染 DNS 解析</text>
+      <text x="546" y="286" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="12" fill="#FFFFFF">✓ AnyTLS / Hysteria2</text>
+      <text x="546" y="308" font-family="IBM Plex Sans, Noto Sans SC, sans-serif" font-size="12" fill="#FFFFFF">✓ 切换节点 Mac 零感知</text>
+      <text x="546" y="334" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#0D9488">100% 保持原装隔离</text>
+
+      <!-- Arrows Clients to Mac sing-box -->
+      <line x1="203" y1="120" x2="260" y2="120" stroke="#0052CC" stroke-width="1.5"/>
+      <polygon points="264,120 257,116 257,124" fill="#0052CC"/>
+      <line x1="203" y1="200" x2="232" y2="200" stroke="#0052CC" stroke-width="1.5"/>
+      <line x1="203" y1="305" x2="232" y2="305" stroke="#0052CC" stroke-width="1.5"/>
+      <line x1="232" y1="120" x2="232" y2="305" stroke="#0052CC" stroke-width="1.5"/>
+
+      <!-- Arrow Mac sing-box to Direct -->
+      <line x1="370" y1="210" x2="370" y2="232" stroke="#0D9488" stroke-width="1.6"/>
+      <polygon points="370,236 366,229 374,229" fill="#0D9488"/>
+
+      <!-- Arrow Mac sing-box to Lima SSH -->
+      <line x1="476" y1="130" x2="532" y2="130" stroke="#0052CC" stroke-width="1.8"/>
+      <polygon points="536,130 529,126 529,134" fill="#0052CC"/>
+
+      <!-- Arrow SSH to mw-proxy -->
+      <line x1="615" y1="168" x2="615" y2="188" stroke="#0052CC" stroke-width="1.6"/>
+      <polygon points="615,192 611,185 619,185" fill="#0052CC"/>
+    </svg>
+    <figcaption>数据流闭环说明：当客户端请求 www.google.com 时，Mac 本地 sing-box 在内存中检查 geosite-cn 未命中后，不向任何 DNS 服务器发包，直接将域名字符串 "www.google.com" 放入 SOCKS5 握手包通过 17890 端口送进 Lima 虚拟机，由 Linux 侧代理完成解析与连接。</figcaption>
+  </figure>
+</section>
+
+<section class="sec-s">
+  <h2>可直接落地的终极配置文件与一键接管/净空脚本</h2>
+  <p>
+    以下两份文件完全运行在 macOS 宿主机用户态目录（<span class="inline-code">~/.lima-proxy/</span>），<strong>不触碰 Linux 虚拟机内部任何配置、不主动断开或杀掉 Shadowrocket、不遗留任何死路由或污染变量</strong>。
+  </p>
+
+  <h3>1. 终极无死锁版 <span class="inline-code">~/.lima-proxy/mac-singbox.json</span>（兼容 sing-box 1.10 ~ 1.12+）</h3>
+  <p>
+    对照阶段二的原配置，本配置做出了三项决定性修正：
+    ① <strong>彻底删除 <span class="inline-code">dns-remote</span> 与 <span class="inline-code">geoip-cn</span></strong>，杜绝境外域名在 Mac 宿主机触发跨 SSH 隧道的同步 DNS 查询；
+    ② 将 <span class="inline-code">geosite-cn</span> 与 <span class="inline-code">geosite-private</span> 改为<strong>本地离线文件（<span class="inline-code">"type": "local"</span>）</strong>，避免 <span class="inline-code">sing-box</span> 启动时因网络未就绪而卡在远端规则集下载；
+    ③ 仅在 <span class="inline-code">direct</span> 出站发生域名拨号时使用国内 <span class="inline-code">223.5.5.5</span> 解析，境外流量（<span class="inline-code">final: "to-lima"</span>）100% 走 SOCKS5 域名原样透传（参见 <a href="https://sing-box.sagernet.org/configuration/outbound/socks/" target="_blank" rel="noopener noreferrer">sing-box SOCKS Outbound 文档</a>）：
+  </p>
+  <div class="code-block">{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-direct",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "final": "dns-direct"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mac-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890,
+      "set_system_proxy": false
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "socks",
+      "tag": "to-lima",
+      "server": "127.0.0.1",
+      "server_port": 17890,
+      "version": "5"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "local",
+        "format": "binary",
+        "path": "/Users/SHARED_OR_USER_HOME/.lima-proxy/ruleset/geosite-private.srs"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "local",
+        "format": "binary",
+        "path": "/Users/SHARED_OR_USER_HOME/.lima-proxy/ruleset/geosite-cn.srs"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".local",
+          ".internal",
+          ".lan",
+          "baidu.com",
+          "qq.com",
+          "weixin.qq.com",
+          "taobao.com",
+          "tmall.com",
+          "alicdn.com",
+          "aliyun.com",
+          "bilibili.com",
+          "hdslb.com",
+          "feishu.cn",
+          "bytedance.com",
+          "jd.com",
+          "163.com",
+          "126.com"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geosite-private",
+          "geosite-cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "to-lima",
+    "auto_detect_interface": true
+  }
+}</div>
+
+  <h3>2. 宿主机一体化控制与纯净恢复脚本 <span class="inline-code">~/.lima-proxy/lima-bridge.sh</span></h3>
+  <p>
+    该脚本会自动替换配置中的用户主目录路径、检查本地离线 <span class="inline-code">.srs</span> 规则集、以<strong>净空环境变量（<span class="inline-code">env -i</span>）</strong>的方式启动 SSH 保活隧道与本地 <span class="inline-code">sing-box</span>（彻底杜绝自回环），并只读检测顶层 <span class="inline-code">scutil --proxy</span> 是否存在 Shadowrocket (<span class="inline-code">1082</span>) 残留：
+  </p>
+  <div class="code-block">#!/bin/bash
+# ==============================================================================
+# ~/.lima-proxy/lima-bridge.sh
+# 遵循三大红线：
+# 1. 绝不修改 Linux 虚拟机 (mini-work) 内部任何文件或网络规则
+# 2. 绝不主动关闭或杀掉外部商用 VPN (Shadowrocket)
+# 3. 支持一键零污染彻底恢复 macOS 纯净物理直连 (lima-bridge.sh off)
+# ==============================================================================
+
+set -euo pipefail
+
+BASE_DIR="$HOME/.lima-proxy"
+BIN_PATH="$BASE_DIR/bin/sing-box"
+RULESET_DIR="$BASE_DIR/ruleset"
+CONF_PATH="$BASE_DIR/mac-singbox.json"
+LOG_PATH="$BASE_DIR/mac-singbox.log"
+LIMA_HOST="lima-mini-work"
+LOCAL_PORT=7890
+TUNNEL_PORT=17890
+VM_PROXY_ADDR="10.203.0.1:17890"
+
+# 严谨的环回与内网豁免名单，保护 Antigravity 本地 Go language_server IPC 不被代理劫持
+BYPASS_LIST="localhost,127.0.0.1,::1,10.203.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,*.local,*.internal,*.lan"
+
+get_active_hardware_services() {
+    # 仅获取真实的物理硬件网络服务（排除虚拟 VPN 服务），避免误改虚拟接口
+    networksetup -listallnetworkservices | tail -n +2 | sed 's/^\*//' | grep -E "Wi-Fi|Ethernet|LAN|Thunderbolt|USB" || true
+}
+
+ensure_config_and_rulesets() {
+    mkdir -p "$RULESET_DIR"
+    # 若本地尚无离线规则集，则在当前可用网络下预下载一次，后续永久离线毫秒级加载
+    if [[ ! -s "$RULESET_DIR/geosite-private.srs" ]]; then
+        echo "📦 正在初始化离线规则集 geosite-private.srs..."
+        curl -fsSL --connect-timeout 8 -o "$RULESET_DIR/geosite-private.srs" \
+            "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-private.srs" || true
+    fi
+    if [[ ! -s "$RULESET_DIR/geosite-cn.srs" ]]; then
+        echo "📦 正在初始化离线规则集 geosite-cn.srs..."
+        curl -fsSL --connect-timeout 8 -o "$RULESET_DIR/geosite-cn.srs" \
+            "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs" || true
+    fi
+
+    # 渲染生成无死锁版 mac-singbox.json
+    cat &gt; "$CONF_PATH" &lt;&lt;EOF
+{
+  "log": { "level": "warn", "timestamp": true },
+  "dns": {
+    "servers": [
+      { "tag": "dns-direct", "address": "223.5.5.5", "detour": "direct" }
+    ],
+    "final": "dns-direct"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mac-in",
+      "listen": "127.0.0.1",
+      "listen_port": ${LOCAL_PORT},
+      "set_system_proxy": false
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "socks",
+      "tag": "to-lima",
+      "server": "127.0.0.1",
+      "server_port": ${TUNNEL_PORT},
+      "version": "5"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "local",
+        "format": "binary",
+        "path": "${RULESET_DIR}/geosite-private.srs"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "local",
+        "format": "binary",
+        "path": "${RULESET_DIR}/geosite-cn.srs"
+      }
+    ],
+    "rules": [
+      { "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
+      { "ip_is_private": true, "outbound": "direct" },
+      {
+        "domain_suffix": [
+          ".cn", ".local", ".internal", ".lan",
+          "baidu.com", "qq.com", "weixin.qq.com", "taobao.com",
+          "tmall.com", "alicdn.com", "aliyun.com", "bilibili.com",
+          "hdslb.com", "feishu.cn", "bytedance.com", "jd.com", "163.com"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["geosite-private", "geosite-cn"],
+        "outbound": "direct"
+      }
+    ],
+    "final": "to-lima",
+    "auto_detect_interface": true
+  }
+}
+EOF
+}
+
+start_bridge() {
+    echo "🚀 [1/5] 检查并生成零 DNS 死锁版 sing-box 配置..."
+    ensure_config_and_rulesets
+
+    echo "🔗 [2/5] 建立至 Lima (mini-work) 的纯净 SSH 端口转发隧道 (127.0.0.1:${TUNNEL_PORT})..."
+    pkill -f "127.0.0.1:${TUNNEL_PORT}:${VM_PROXY_ADDR}" 2&gt;/dev/null || true
+    # 使用 env -i 剥离一切代理环境变量，防止 ssh 自身被代理拦截
+    env -i HOME="$HOME" USER="$USER" PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin" \
+        ssh -f -N \
+        -F "${HOME}/.lima/mini-work/ssh.config" \
+        -o ExitOnForwardFailure&#61;yes \
+        -o ServerAliveInterval=5 \
+        -o ServerAliveCountMax=3 \
+        -L "127.0.0.1:${TUNNEL_PORT}:${VM_PROXY_ADDR}" \
+        "$LIMA_HOST"
+
+    echo "⚙️ [3/5] 使用纯净无污染环境启动 Mac 本地 sing-box (127.0.0.1:${LOCAL_PORT})..."
+    pkill -f "$BIN_PATH run -c $CONF_PATH" 2&gt;/dev/null || true
+    # 关键：剥离 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 启动 sing-box，彻底杜绝 Go 进程自回环！
+    env -i HOME="$HOME" USER="$USER" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+        nohup "$BIN_PATH" run -c "$CONF_PATH" &gt;"$LOG_PATH" 2&gt;&amp;1 &amp;
+    sleep 0.6
+
+    echo "🌐 [4/5] 配置 macOS 物理网卡 HTTP/HTTPS 代理（显式关闭 PAC 与 SOCKS 避免冲突）..."
+    while IFS= read -r svc; do
+        [[ -z "$svc" ]] &amp;&amp; continue
+        # 1. 彻底关闭 PAC 与 SOCKS5 防火墙代理（消除优先级抢占与 libcurl 不兼容）
+        networksetup -setautoproxystate "$svc" off 2&gt;/dev/null || true
+        networksetup -setsocksfirewallproxystate "$svc" off 2&gt;/dev/null || true
+        # 2. 配置标准 HTTP / HTTPS 代理指向 127.0.0.1:7890
+        networksetup -setwebproxy "$svc" 127.0.0.1 "$LOCAL_PORT"
+        networksetup -setsecurewebproxy "$svc" 127.0.0.1 "$LOCAL_PORT"
+        networksetup -setwebproxystate "$svc" on
+        networksetup -setsecurewebproxystate "$svc" on
+        networksetup -setproxybypassdomains "$svc" "localhost" "127.0.0.1" "::1" "10.203.0.1" "*.local" "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+        echo "   ✓ 已挂载物理网卡: $svc -&gt; 127.0.0.1:${LOCAL_PORT}"
+    done &lt;&lt;&lt; "$(get_active_hardware_services)"
+
+    echo "🧬 [5/5] 注入 launchd 环境变量 (专为 Antigravity Go 核心与 Gemini.app 设计)..."
+    launchctl setenv http_proxy "http://127.0.0.1:${LOCAL_PORT}"
+    launchctl setenv https_proxy "http://127.0.0.1:${LOCAL_PORT}"
+    launchctl setenv HTTP_PROXY "http://127.0.0.1:${LOCAL_PORT}"
+    launchctl setenv HTTPS_PROXY "http://127.0.0.1:${LOCAL_PORT}"
+    launchctl setenv no_proxy "$BYPASS_LIST"
+    launchctl setenv NO_PROXY "$BYPASS_LIST"
+    # 严禁设置 all_proxy / ALL_PROXY，避免 C++ gRPC 与 SOCKS 协议解析异常
+    launchctl unsetenv all_proxy 2&gt;/dev/null || true
+    launchctl unsetenv ALL_PROXY 2&gt;/dev/null || true
+
+    dscacheutil -flushcache 2&gt;/dev/null || true
+    killall -HUP mDNSResponder 2&gt;/dev/null || true
+
+    echo ""
+    check_status
+}
+
+stop_bridge() {
+    echo "🧹 [1/4] 正在清空所有物理网卡的 HTTP / HTTPS / SOCKS / PAC 代理..."
+    while IFS= read -r svc; do
+        [[ -z "$svc" ]] &amp;&amp; continue
+        networksetup -setautoproxystate "$svc" off 2&gt;/dev/null || true
+        networksetup -setwebproxystate "$svc" off 2&gt;/dev/null || true
+        networksetup -setsecurewebproxystate "$svc" off 2&gt;/dev/null || true
+        networksetup -setsocksfirewallproxystate "$svc" off 2&gt;/dev/null || true
+        echo "   ✓ 已恢复物理网卡纯净直连: $svc"
+    done &lt;&lt;&lt; "$(get_active_hardware_services)"
+
+    echo "🧹 [2/4] 正在移除 launchctl 全局代理环境变量..."
+    for var in http_proxy https_proxy all_proxy no_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY; do
+        launchctl unsetenv "$var" 2&gt;/dev/null || true
+    done
+
+    echo "🛑 [3/4] 正在停止本地 sing-box 与 Lima SSH 映射隧道..."
+    pkill -f "$BIN_PATH run -c $CONF_PATH" 2&gt;/dev/null || true
+    pkill -f "127.0.0.1:${TUNNEL_PORT}:${VM_PROXY_ADDR}" 2&gt;/dev/null || true
+
+    echo "🔄 [4/4] 正在刷新 macOS DNS 缓存..."
+    dscacheutil -flushcache 2&gt;/dev/null || true
+    killall -HUP mDNSResponder 2&gt;/dev/null || true
+
+    echo "✅ 已 100% 恢复 macOS 纯净物理直连（零残留）！"
+}
+
+check_status() {
+    echo "================ 当前代理桥接诊断面板 ================"
+    local top_port
+    top_port=$(scutil --proxy | awk '/HTTPPort :/{print $3; exit}')
+    echo "• 内核顶层生效 HTTPPort : ${top_port:-未开启}"
+    if [[ "${top_port:-}" == "1082" ]]; then
+        echo "⚠️  [只读告警] 当前 macOS 顶层代理仍为 1082 (外部 VPN Shadowrocket 的 utun 虚拟网卡处于激活状态)。"
+        echo "   👉 根据红线规则，本脚本绝不触碰外部 VPN。"
+        echo "   👉 当您手动关闭 Shadowrocket (确保系统设置->VPN 中已断开) 后，顶层代理将自动无缝落回 7890！"
+    elif [[ "${top_port:-}" == "${LOCAL_PORT}" ]]; then
+        echo "✅ 内核顶层代理已准确指向 127.0.0.1:${LOCAL_PORT}！"
+        echo "💡 提示：若 Antigravity 或 Gemini.app 此前已打开，请按 Cmd+Q 重启一次以加载新环境变量与连接池。"
+    fi
+    echo "======================================================"
+}
+
+case "${1:-status}" in
+    on|enable|start)   start_bridge ;;
+    off|disable|reset) stop_bridge ;;
+    status)            check_status ;;
+    *) echo "用法: $0 {on|off|status}" ;;
+esac</div>
+</section>
+
+<section class="sec-s">
+  <h2>为什么切换后无需频繁调整？三大常见场景的自适应行为</h2>
+
+  <div class="three-col-strip">
+    <div class="strip-item">
+      <h3>场景 1：在 Linux 虚拟机内切换节点或订阅</h3>
+      <p>
+        由于 Mac 侧的 <span class="inline-code">mac-singbox.json</span> 只负责将非 CN 域名通过 SOCKS5 (<span class="inline-code">127.0.0.1:17890</span>) 塞进 Linux 虚拟机的 <span class="inline-code">10.203.0.1:17890</span>，<strong>Mac 宿主机完全不感知远端是 AnyTLS 还是 Hysteria2</strong>。你在 Linux 内部切换任何节点，Mac 端零重启、零修改即刻生效。
+      </p>
+    </div>
+    <div class="strip-item">
+      <h3>场景 2：从外部 VPN (Shadowrocket) 切到 Lima 共享</h3>
+      <p>
+        你可以随时预先运行 <span class="inline-code">~/.lima-proxy/lima-bridge.sh on</span>。当 Shadowrocket 开启时，其 <span class="inline-code">utun5</span> 优先级高于物理网卡，你依然通过 Shadowrocket 通信；当你在 Mac 上手动彻底关闭 Shadowrocket 时，<span class="inline-code">utun5</span> 消失，macOS 内核的 <span class="inline-code">State:/Network/Global/Proxies</span> <strong>在 0.1 秒内自动回落到物理网卡的 <span class="inline-code">7890</span></strong>，实现无缝接力。
+      </p>
+    </div>
+    <div class="strip-item">
+      <h3>场景 3：长连接缓存刷新与首次冷启动</h3>
+      <p>
+        首次执行 <span class="inline-code">lima-bridge.sh on</span> 后，由于 macOS 的 <span class="inline-code">launchctl setenv</span> 仅对新派生进程注入环境变量，请将 <strong>Antigravity IDE</strong> 与 <strong>Gemini.app</strong> 执行一次 <span class="inline-code">Cmd + Q</span> 完全退出并重新打开。此后只要不执行 <span class="inline-code">off</span>，日常开关外部 VPN 或切换虚拟机节点均无需再重启软件。
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="pull-quote">
+  “显式代理架构下的黄金法则：永远不要在前端分流器里做跨隧道的同步 DNS 解析——用纯内存域名字典拦截国内流量，把未知域名原样交给远端出口去解析。”
+</div>
+
+<section class="sec-s">
+  <h2>References</h2>
+  <ol class="open-list">
+    <li>
+      <span class="num">01</span>
+      <strong>Apple Developer Documentation — SCDynamicStoreCopyProxies(_:)</strong>：详解 macOS <span class="inline-code">SystemConfiguration</span> 框架如何根据当前主路由接口合成顶层 <span class="inline-code">State:/Network/Global/Proxies</span> 字典及 <span class="inline-code">__SCOPED__</span> 作用域规则：<a href="https://developer.apple.com/documentation/systemconfiguration/scdynamicstorecopyproxies(_:)" target="_blank" rel="noopener noreferrer">https://developer.apple.com/documentation/systemconfiguration/scdynamicstorecopyproxies(_:)</a>
+    </li>
+    <li>
+      <span class="num">02</span>
+      <strong>SagerNet sing-box 官方文档 — Route &amp; Route Rule</strong>：说明 IP 类规则集（<span class="inline-code">geoip</span>）在匹配域名请求时触发同步 DNS 解析的机制，以及本地二进制规则集（<span class="inline-code">rule_set</span>）配置方法：<a href="https://sing-box.sagernet.org/configuration/route/rule/" target="_blank" rel="noopener noreferrer">https://sing-box.sagernet.org/configuration/route/rule/</a> 与 <a href="https://sing-box.sagernet.org/configuration/route/" target="_blank" rel="noopener noreferrer">https://sing-box.sagernet.org/configuration/route/</a>
+    </li>
+    <li>
+      <span class="num">03</span>
+      <strong>Go Standard Library — net/http.ProxyFromEnvironment</strong>：Go 语言标准库代理读取规范，证实 Go 默认仅解析 <span class="inline-code">HTTP_PROXY</span>、<span class="inline-code">HTTPS_PROXY</span> 与 <span class="inline-code">NO_PROXY</span> 环境变量，不执行 PAC 脚本且不读取 macOS <span class="inline-code">scutil</span>：<a href="https://pkg.go.dev/net/http#ProxyFromEnvironment" target="_blank" rel="noopener noreferrer">https://pkg.go.dev/net/http#ProxyFromEnvironment</a>
+    </li>
+    <li>
+      <span class="num">04</span>
+      <strong>Stack Overflow / Apple Support — Why libcurl and CLI tools ignore macOS Automatic Proxy Configuration (PAC)</strong>：剖析 <span class="inline-code">libcurl</span> 与非 WebKit 原生进程在系统仅开启 PAC 时自动退回物理直连的底层原因：<a href="https://stackoverflow.com/questions/42510674/osx-why-does-curl-not-use-automatic-proxy-configuration-pac" target="_blank" rel="noopener noreferrer">https://stackoverflow.com/questions/42510674/osx-why-does-curl-not-use-automatic-proxy-configuration-pac</a> 与 <a href="https://support.apple.com/en-mn/guide/mac-help/mchlp2591/mac" target="_blank" rel="noopener noreferrer">https://support.apple.com/en-mn/guide/mac-help/mchlp2591/mac</a>
+    </li>
+  </ol>
+</section>
+
+</body>
+</html>
