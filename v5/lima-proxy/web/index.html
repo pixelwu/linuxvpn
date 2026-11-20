@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lima Proxy Manager</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --card-hover: #1a2744;
+    --border: #2a3a5c;
+    --text: #e0e0e0;
+    --text-muted: #8899aa;
+    --primary: #4fc3f7;
+    --danger: #ef5350;
+    --success: #66bb6a;
+    --warning: #ffa726;
+    --accent: #7c4dff;
+    --input-bg: #0f1629;
+    --radius: 12px;
+    --sub-color: #29b6f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .titlebar {
+    height: 38px;
+    -webkit-app-region: drag;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .titlebar .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+  }
+  .container { max-width: 520px; margin: 0 auto; padding: 16px; }
+  .status-card, .sub-card, .add-form {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .status-header, .sub-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .status-header h3, .sub-header h3 {
+    font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+  }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+  .badge-ok { background: rgba(102,187,106,0.15); color: var(--success); }
+  .badge-err { background: rgba(239,83,80,0.15); color: var(--danger); }
+  .badge-warn { background: rgba(255,167,38,0.15); color: var(--warning); }
+  .badge-loading { background: rgba(79,195,247,0.15); color: var(--primary); }
+  .status-grid {
+    display: grid; grid-template-columns: 80px 1fr; gap: 6px 12px; font-size: 13px;
+  }
+  .status-grid .label { color: var(--text-muted); }
+  .status-grid .value { font-family: "SF Mono", Monaco, monospace; font-size: 12px; word-break: break-all; }
+
+  /* Mac Bridge Health Strip (v5.0) */
+  .bridge-strip {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    font-size: 11px;
+  }
+  .pill {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(136,153,170,0.12);
+    color: var(--text-muted);
+  }
+  .pill-ok { background: rgba(102,187,106,0.15); color: var(--success); }
+  .pill-warn { background: rgba(255,167,38,0.15); color: var(--warning); }
+  .pill-err { background: rgba(239,83,80,0.15); color: var(--danger); }
+
+  .sub-list { list-style: none; margin-bottom: 10px; }
+  .sub-list-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 6px; font-size: 12px;
+  }
+  .sub-list-item .sub-name {
+    font-weight: 600; color: var(--text); min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sub-list-item .sub-meta {
+    flex: 1; text-align: right; font-size: 10px; color: var(--text-muted);
+    font-family: "SF Mono", monospace; white-space: nowrap;
+  }
+  .sub-list-item .sub-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .sub-list-item .sub-node-count {
+    font-size: 10px; padding: 2px 6px; border-radius: 6px;
+    background: rgba(41,182,246,0.15); color: var(--sub-color); font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  }
+  .btn-icon {
+    border: none; background: transparent; cursor: pointer; font-size: 14px;
+    padding: 2px 4px; border-radius: 4px; transition: all 0.15s; -webkit-app-region: no-drag; line-height: 1;
+  }
+  .btn-icon:hover { background: rgba(255,255,255,0.08); }
+  .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+  .add-sub-form {
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; margin-bottom: 10px; display: none;
+  }
+  .add-sub-form.open, .add-form.open { display: block; }
+  .add-form { display: none; }
+  .form-row { margin-bottom: 10px; }
+  .form-row label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .form-row input, .form-row select {
+    width: 100%; padding: 8px 12px; background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    font-size: 13px; font-family: "SF Mono", monospace; outline: none; -webkit-app-region: no-drag;
+  }
+  .form-row input:focus, .form-row select:focus { border-color: var(--primary); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+    margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .section-title .node-count { font-weight: 400; font-size: 11px; }
+  .node-group { margin-bottom: 12px; }
+  .node-group-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    font-size: 12px; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; border-radius: 8px; margin-bottom: 4px;
+  }
+  .node-group-header:hover { background: rgba(255,255,255,0.03); }
+  .node-group-header .group-chevron { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+  .node-group-header.collapsed .group-chevron { transform: rotate(-90deg); }
+  .node-group-body { padding-left: 8px; border-left: 2px solid var(--border); margin-left: 6px; }
+  .node-group-body.collapsed { display: none; }
+  .node-group[data-type="manual"] > .node-group-body { border-left-color: var(--accent); }
+  .node-group[data-type="subscription"] > .node-group-body { border-left-color: var(--sub-color); }
+  .node-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+  }
+  .node-item:hover { background: var(--card-hover); border-color: var(--primary); }
+  .node-item.active { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+  .node-item .flag { font-size: 22px; flex-shrink: 0; }
+  .node-info { flex: 1; min-width: 0; }
+  .node-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .node-detail { font-size: 11px; color: var(--text-muted); font-family: "SF Mono", monospace; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .node-type {
+    font-size: 10px; padding: 2px 8px; border-radius: 6px;
+    background: rgba(124,77,255,0.15); color: var(--accent); font-weight: 600; text-transform: uppercase;
+  }
+  .node-source-badge {
+    font-size: 10px; padding: 2px 6px; border-radius: 6px;
+    background: rgba(41,182,246,0.1); color: var(--sub-color); font-weight: 500;
+  }
+  .node-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+  .latency-badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-family: "SF Mono", monospace; }
+  .latency-good { background: rgba(102,187,106,0.15); color: #66bb6a; }
+  .latency-ok { background: rgba(255,167,38,0.15); color: #ffa726; }
+  .latency-bad { background: rgba(239,83,80,0.15); color: #ef5350; }
+  .latency-timeout { background: rgba(136,153,170,0.15); color: #8899aa; }
+  .btn {
+    border: none; border-radius: 8px; padding: 8px 16px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; -webkit-app-region: no-drag; font-family: inherit;
+  }
+  .btn-primary { background: var(--primary); color: #000; }
+  .btn-sub { background: var(--sub-color); color: #000; }
+  .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 6px 10px; font-size: 11px; }
+  .btn-sm { padding: 6px 12px; font-size: 11px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+  .btn-switch { background: var(--success); color: #000; padding: 6px 12px; font-size: 11px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .log-area {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; font-family: "SF Mono", Monaco, monospace; font-size: 11px; line-height: 1.6;
+    color: var(--text-muted); max-height: 200px; overflow-y: auto; margin-top: 16px;
+    white-space: pre-wrap; word-break: break-all; -webkit-user-select: text; user-select: text;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { animation: spin 1s linear infinite; display: inline-block; }
+  .toast {
+    position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    z-index: 1000; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast-success { background: rgba(102,187,106,0.9); color: #000; }
+  .toast-error { background: rgba(239,83,80,0.9); color: #fff; }
+  .toast-warning { background: rgba(255,167,38,0.95); color: #000; }
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <span class="status-dot" id="titleDot" style="background:var(--warning)"></span>
+  Lima Proxy Manager v5.0
+</div>
+
+<div class="container">
+  <!-- Status Card -->
+  <div class="status-card">
+    <div class="status-header">
+      <h3>📡 代理与 Mac 共享状态</h3>
+      <span class="badge badge-loading" id="statusBadge">检测中...</span>
+    </div>
+    <div class="status-grid" id="statusGrid">
+      <span class="label">协议</span><span class="value" id="sType">-</span>
+      <span class="label">服务器</span><span class="value" id="sServer">-</span>
+      <span class="label">端口</span><span class="value" id="sPort">-</span>
+      <span class="label">SNI</span><span class="value" id="sSni">-</span>
+      <span class="label">防火墙</span><span class="value" id="sFw">-</span>
+    </div>
+    <!-- v5.0 实时链路健康指示灯 -->
+    <div class="bridge-strip" id="bridgeStrip">
+      <span class="pill" id="pillVm">VM: -</span>
+      <span class="pill" id="pillTunnel">隧道 17890: -</span>
+      <span class="pill" id="pillSb">核心 7890: -</span>
+      <span class="pill" id="pillTun">全应用 utun99: -</span>
+      <span class="pill" id="pillExt" style="display:none"></span>
+    </div>
+    <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="refreshStatus()" id="btnRefreshStatus">🔄 刷新状态</button>
+      <button class="btn btn-sm btn-ghost" onclick="testProxy()" id="btnTest">🧪 测试连通</button>
+      <button class="btn btn-sm btn-sub" onclick="macProxyEnable()" id="btnMacEnable">🔗 开启 Mac 全应用共享</button>
+      <button class="btn btn-sm btn-ghost" onclick="macProxyDisable()" id="btnMacDisable">🛑 关闭共享</button>
+      <button class="btn btn-sm btn-ghost" onclick="macProxyReconnect()" id="btnMacReconnect">⚡ 自愈重连</button>
+      <button class="btn btn-sm btn-danger" onclick="macProxyPanic()" id="btnMacPanic" style="margin-left:auto">🚨 恢复直连</button>
+    </div>
+  </div>
+
+  <!-- Subscription Card -->
+  <div class="sub-card">
+    <div class="sub-header">
+      <h3>📡 订阅管理</h3>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-sub" onclick="updateAllSubscriptions()" id="btnUpdateAllSub">🔄 全部更新</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleAddSubForm()">➕ 添加订阅</button>
+      </div>
+    </div>
+    <div class="add-sub-form" id="addSubForm">
+      <div class="form-row"><label>名称</label><input type="text" id="fSubName" placeholder="例如: TrojanFlare"></div>
+      <div class="form-row"><label>订阅地址</label><input type="text" id="fSubUrl" placeholder="https://..."></div>
+      <div class="form-row"><label>过滤关键词</label><input type="text" id="fSubFilter" placeholder="日本" value="日本"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-sm btn-primary" onclick="addSubscription()">添加</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleAddSubForm()">取消</button>
+      </div>
+    </div>
+    <ul class="sub-list" id="subList"></ul>
+    <div class="sub-info" id="subSummary" style="font-size:11px;color:var(--text-muted)"></div>
+  </div>
+
+  <!-- Node List -->
+  <div class="section-title">
+    <span>📋 节点列表 <span class="node-count" id="nodeCount"></span></span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-ghost" onclick="pingAllNodes()" id="btnPingAll">⚡ 全部测速</button>
+      <button class="btn btn-sm btn-ghost" onclick="toggleAddForm()">➕ 手动添加</button>
+    </div>
+  </div>
+
+  <div class="add-form" id="addForm">
+    <div class="form-row"><label>名称</label><input type="text" id="fName" placeholder="日本节点-1"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>协议类型</label>
+        <select id="fType">
+          <option value="trojan">Trojan</option>
+          <option value="hysteria2">Hysteria2</option>
+          <option value="anytls">AnyTLS</option>
+          <option value="vless">VLESS</option>
+          <option value="vmess">VMess</option>
+          <option value="shadowsocks">Shadowsocks</option>
+        </select>
+      </div>
+      <div class="form-row"><label>国旗 Emoji</label><input type="text" id="fFlag" placeholder="🇯🇵" value="🌐"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>服务器地址</label><input type="text" id="fServer" placeholder="1.2.3.4 或 domain.com"></div>
+      <div class="form-row"><label>端口</label><input type="number" id="fPort" placeholder="443" value="443"></div>
+    </div>
+    <div class="form-row"><label>密码 / UUID</label><input type="text" id="fPassword" placeholder="密码"></div>
+    <div class="form-row"><label>TLS SNI (留空则与服务器地址相同)</label><input type="text" id="fSni" placeholder="example.com"></div>
+    <div class="form-actions">
+      <button class="btn btn-primary btn-sm" onclick="addNode()">添加节点</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleAddForm()">取消</button>
+    </div>
+  </div>
+
+  <div id="nodeList"></div>
+  <div class="log-area" id="logArea">就绪 (v5.0)。\n</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let config = null;
+let isOperating = false;
+let isRefreshing = false;
+let lastAutoRefreshAt = 0;
+let latencyData = {};
+let collapsedGroups = {};
+
+function shellEscape(str) {
+  return "'" + String(str).replace(/'/g, "'\\''") + "'";
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show toast-' + type;
+  setTimeout(() => { toast.className = 'toast'; }, 3000);
+}
+
+function nativeBridge(cmd, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shell) {
+      const callId = 'cb_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+      const timer = setTimeout(() => {
+        delete window[callId];
+        reject(new Error('命令超时 (' + (timeoutMs/1000) + 's)'));
+      }, timeoutMs);
+      window[callId] = (result) => {
+        clearTimeout(timer);
+        delete window[callId];
+        resolve(result);
+      };
+      window.webkit.messageHandlers.shell.postMessage({cmd, callId});
+    } else {
+      resolve(null);
+    }
+  });
+}
+
+async function runCommand(cmd, timeoutMs = 60000, quiet = false) {
+  if (!quiet) appendLog('$ ' + cmd);
+  try {
+    const result = await nativeBridge(cmd, timeoutMs);
+    if (result !== null) {
+      if (!quiet) appendLog(result);
+      return result;
+    }
+    return null;
+  } catch (e) {
+    if (!quiet) {
+      appendLog('❌ ' + e.message);
+      showToast(e.message, 'error');
+    }
+    return null;
+  }
+}
+
+async function loadConfig() {
+  try {
+    const result = await nativeBridge('cat ~/.lima-proxy/config.json', 10000);
+    if (result) {
+      config = JSON.parse(result);
+    } else {
+      config = {version:2, active_node:null, nodes:[], subscriptions:[]};
+    }
+  } catch (e) {
+    appendLog('⚠️ 加载配置失败: ' + e.message);
+    config = {version:2, active_node:null, nodes:[], subscriptions:[]};
+  }
+  if (!config.subscriptions) config.subscriptions = [];
+  if (!config.nodes) config.nodes = [];
+  renderNodes();
+  renderSubscriptions();
+}
+
+function setPill(id, text, state) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'pill' + (state ? ' pill-' + state : '');
+}
+
+async function refreshBridgeHealth() {
+  const raw = await runCommand('~/.lima-proxy/lima-bridge.sh status --json 2>/dev/null', 10000, true);
+  if (!raw) return;
+  try {
+    const s = JSON.parse(raw.trim());
+    setPill('pillVm', 'VM: ' + (s.vm_status || 'Stopped'), s.vm_status === 'Running' ? 'ok' : 'err');
+    setPill('pillTunnel', '隧道 17890: ' + (s.tunnel === 'up' ? '通' : '断'), s.tunnel === 'up' ? 'ok' : 'err');
+    setPill('pillSb', '核心 7890: ' + (s.singbox === 'up' ? '开' : '关'), s.singbox === 'up' ? 'ok' : '');
+    setPill('pillTun', '全应用 utun99: ' + (s.tun === 'on' ? '已激活' : '未激活'), s.tun === 'on' ? 'ok' : 'warn');
+    const ext = document.getElementById('pillExt');
+    if (s.ext_vpn && s.ext_vpn !== 'none') {
+      ext.style.display = 'inline-block';
+      setPill('pillExt', '⚠️ 外部VPN: ' + s.ext_vpn + ' (占坑中)', 'warn');
+    } else {
+      ext.style.display = 'none';
+    }
+  } catch (ignored) {}
+}
+
+function getSubName(subId) {
+  if (!config || !config.subscriptions) return subId;
+  const sub = config.subscriptions.find(s => s.id === subId);
+  return sub ? sub.name : subId;
+}
+
+function countNodesForSource(source) {
+  return config ? config.nodes.filter(n => n.source === source).length : 0;
+}
+
+function renderSubscriptions() {
+  if (!config) return;
+  const list = document.getElementById('subList');
+  list.innerHTML = '';
+  const subs = config.subscriptions || [];
+  const summary = document.getElementById('subSummary');
+  if (subs.length === 0) {
+    summary.textContent = '暂无订阅，点击"➕ 添加订阅"开始';
+    return;
+  }
+  const totalSubNodes = config.nodes.filter(n => n.source && n.source !== 'manual').length;
+  summary.textContent = subs.length + ' 个订阅 · ' + totalSubNodes + ' 个节点';
+  subs.forEach(sub => {
+    const li = document.createElement('li');
+    li.className = 'sub-list-item';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sub-name';
+    nameSpan.textContent = sub.name || sub.id;
+    const countSpan = document.createElement('span');
+    countSpan.className = 'sub-node-count';
+    countSpan.textContent = countNodesForSource(sub.id) + ' 节点';
+    const metaSpan = document.createElement('span');
+    metaSpan.className = 'sub-meta';
+    metaSpan.textContent = (sub.updated_at || '未更新') + (sub.filter ? ' · 🔍 ' + sub.filter : '');
+    const actionsDiv = document.createElement('span');
+    actionsDiv.className = 'sub-actions';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'btn-icon';
+    updateBtn.textContent = '🔄';
+    updateBtn.disabled = isOperating;
+    updateBtn.addEventListener('click', (e) => { e.stopPropagation(); updateOneSubscription(sub.id); });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-icon';
+    deleteBtn.textContent = '🗑';
+    deleteBtn.disabled = isOperating;
+    deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); removeSubscription(sub.id, sub.name || sub.id); });
+
+    actionsDiv.appendChild(updateBtn);
+    actionsDiv.appendChild(deleteBtn);
+    li.appendChild(nameSpan);
+    li.appendChild(countSpan);
+    li.appendChild(metaSpan);
+    li.appendChild(actionsDiv);
+    list.appendChild(li);
+  });
+}
+
+function renderNodes() {
+  if (!config) return;
+  const container = document.getElementById('nodeList');
+  container.innerHTML = '';
+  document.getElementById('nodeCount').textContent = '(' + config.nodes.length + ')';
+
+  const groups = {};
+  config.nodes.forEach(node => {
+    const src = node.source || 'manual';
+    if (!groups[src]) groups[src] = [];
+    groups[src].push(node);
+  });
+
+  const groupKeys = [];
+  if (groups['manual']) groupKeys.push('manual');
+  (config.subscriptions || []).forEach(sub => { if (groups[sub.id]) groupKeys.push(sub.id); });
+  Object.keys(groups).forEach(k => { if (!groupKeys.includes(k)) groupKeys.push(k); });
+
+  groupKeys.forEach(groupKey => {
+    const nodes = groups[groupKey];
+    const isManual = groupKey === 'manual';
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'node-group';
+    groupDiv.dataset.type = isManual ? 'manual' : 'subscription';
+
+    const header = document.createElement('div');
+    header.className = 'node-group-header' + (collapsedGroups[groupKey] ? ' collapsed' : '');
+    const chevron = document.createElement('span');
+    chevron.className = 'group-chevron';
+    chevron.textContent = '▼';
+    const headerText = document.createElement('span');
+    headerText.textContent = isManual ? '📌 手动添加' : '📡 ' + getSubName(groupKey);
+    const groupCount = document.createElement('span');
+    groupCount.className = 'group-count';
+    groupCount.textContent = '(' + nodes.length + ' 节点)';
+    header.appendChild(chevron);
+    header.appendChild(headerText);
+    header.appendChild(groupCount);
+
+    const body = document.createElement('div');
+    body.className = 'node-group-body' + (collapsedGroups[groupKey] ? ' collapsed' : '');
+    header.addEventListener('click', () => {
+      collapsedGroups[groupKey] = !collapsedGroups[groupKey];
+      header.classList.toggle('collapsed');
+      body.classList.toggle('collapsed');
+    });
+
+    nodes.forEach(node => {
+      const isActive = config.active_node === node.id;
+      const li = document.createElement('div');
+      li.className = 'node-item' + (isActive ? ' active' : '');
+
+      const flagSpan = document.createElement('span');
+      flagSpan.className = 'flag';
+      flagSpan.textContent = node.flag || '🌐';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'node-info';
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'node-name';
+      nameDiv.textContent = (isActive ? '▶ ' : '') + (node.name || node.id);
+      const detailDiv = document.createElement('div');
+      detailDiv.className = 'node-detail';
+      const addrSpan = document.createElement('span');
+      addrSpan.textContent = node.server + ':' + node.server_port;
+      detailDiv.appendChild(addrSpan);
+      if (!isManual) {
+        const srcBadge = document.createElement('span');
+        srcBadge.className = 'node-source-badge';
+        srcBadge.textContent = '📡 订阅';
+        detailDiv.appendChild(srcBadge);
+      }
+      infoDiv.appendChild(nameDiv);
+      infoDiv.appendChild(detailDiv);
+
+      const badgesDiv = document.createElement('div');
+      badgesDiv.style.cssText = 'display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0';
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'node-type';
+      typeSpan.textContent = node.type;
+      badgesDiv.appendChild(typeSpan);
+      if (latencyData[node.id] !== undefined) {
+        badgesDiv.appendChild(createLatencyBadge(latencyData[node.id]));
+      }
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'node-actions';
+      if (isActive) {
+        const activeSpan = document.createElement('span');
+        activeSpan.style.cssText = 'color:var(--success);font-size:11px;white-space:nowrap';
+        activeSpan.textContent = '使用中';
+        actionsDiv.appendChild(activeSpan);
+      } else {
+        const switchBtn = document.createElement('button');
+        switchBtn.className = 'btn btn-switch';
+        switchBtn.textContent = '切换';
+        switchBtn.disabled = isOperating;
+        switchBtn.addEventListener('click', (e) => { e.stopPropagation(); switchNode(node.id); });
+        actionsDiv.appendChild(switchBtn);
+      }
+
+      const pingBtn = document.createElement('button');
+      pingBtn.className = 'btn-icon';
+      pingBtn.textContent = '⚡';
+      pingBtn.addEventListener('click', (e) => { e.stopPropagation(); pingSingleNode(node.id); });
+      actionsDiv.appendChild(pingBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn btn-danger';
+      deleteBtn.textContent = '✕';
+      deleteBtn.disabled = isOperating;
+      deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteNode(node.id, node.name || node.id); });
+      actionsDiv.appendChild(deleteBtn);
+
+      li.appendChild(flagSpan);
+      li.appendChild(infoDiv);
+      li.appendChild(badgesDiv);
+      li.appendChild(actionsDiv);
+      body.appendChild(li);
+    });
+
+    groupDiv.appendChild(header);
+    groupDiv.appendChild(body);
+    container.appendChild(groupDiv);
+  });
+}
+
+function createLatencyBadge(latMs) {
+  const badge = document.createElement('span');
+  badge.className = 'latency-badge ' + (latMs < 0 ? 'latency-timeout' : latMs < 100 ? 'latency-good' : latMs <= 300 ? 'latency-ok' : 'latency-bad');
+  badge.textContent = latMs < 0 ? '超时' : latMs + 'ms';
+  return badge;
+}
+
+async function pingSingleNode(nodeId) {
+  const result = await runCommand('~/.lima-proxy/lima-proxy-switch.sh ping ' + shellEscape(nodeId) + ' 2>&1', 20000);
+  if (!result) return;
+  const lines = result.trim().split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const data = JSON.parse(lines[i].trim());
+      if (data && data.latency_ms !== undefined) {
+        latencyData[data.id || nodeId] = data.latency_ms;
+        renderNodes();
+        showToast(data.latency_ms < 0 ? '测速超时' : '⚡ ' + data.latency_ms + 'ms', data.latency_ms < 0 ? 'error' : 'success');
+        break;
+      }
+    } catch (ignored) {}
+  }
+}
+
+async function pingAllNodes() {
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  const btn = document.getElementById('btnPingAll');
+  btn.disabled = true;
+  btn.textContent = '⚡ 测速中...';
+  try {
+    const result = await runCommand('~/.lima-proxy/lima-proxy-switch.sh ping-all 2>&1', 90000);
+    if (result) {
+      const lines = result.trim().split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const arr = JSON.parse(lines[i].trim());
+          if (Array.isArray(arr)) {
+            arr.forEach(item => { if (item.id && item.latency_ms !== undefined) latencyData[item.id] = item.latency_ms; });
+            renderNodes();
+            showToast('⚡ 测速完成 (' + arr.length + ' 节点)');
+            break;
+          }
+        } catch (ignored) {}
+      }
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ 全部测速';
+  }
+}
+
+async function switchNode(nodeId) {
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  const node = config.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  isOperating = true;
+  setBadge('切换中...', 'loading');
+  setTitleDot('var(--warning)');
+  renderNodes();
+  try {
+    await runCommand('~/.lima-proxy/lima-proxy-switch.sh switch ' + shellEscape(nodeId) + ' 2>&1', 90000);
+  } finally {
+    isOperating = false;
+  }
+  await loadConfig();
+  await refreshStatus();
+  showToast('✅ 已切换到 ' + node.name);
+}
+
+async function addNode() {
+  const name = document.getElementById('fName').value.trim();
+  const type = document.getElementById('fType').value;
+  const server = document.getElementById('fServer').value.trim();
+  const port = parseInt(document.getElementById('fPort').value) || 443;
+  const password = document.getElementById('fPassword').value.trim();
+  const sni = document.getElementById('fSni').value.trim() || server;
+  const flag = document.getElementById('fFlag').value.trim() || '🌐';
+  if (!name || !server || !password) return showToast('请填写必填字段', 'error');
+  const id = type + '-' + server.replace(/\./g, '-') + '-' + port;
+  const nodeJson = JSON.stringify({id, name, type, server, server_port:port, password, tls_sni:sni, flag});
+  await runCommand('~/.lima-proxy/lima-proxy-switch.sh add ' + shellEscape(nodeJson) + ' 2>&1');
+  toggleAddForm();
+  ['fName','fServer','fPassword','fSni'].forEach(k => document.getElementById(k).value = '');
+  document.getElementById('fPort').value = '443';
+  await loadConfig();
+  showToast('✅ 节点已添加');
+}
+
+async function deleteNode(nodeId, nodeName) {
+  if (isOperating || !confirm('删除节点 "' + nodeName + '"？')) return;
+  isOperating = true;
+  renderNodes();
+  try {
+    await runCommand('~/.lima-proxy/lima-proxy-switch.sh delete ' + shellEscape(nodeId) + ' 2>&1');
+  } finally {
+    isOperating = false;
+  }
+  await loadConfig();
+  showToast('已删除: ' + nodeName);
+}
+
+function toggleAddSubForm() { document.getElementById('addSubForm').classList.toggle('open'); }
+function toggleAddForm() { document.getElementById('addForm').classList.toggle('open'); }
+
+async function addSubscription() {
+  const name = document.getElementById('fSubName').value.trim();
+  const url = document.getElementById('fSubUrl').value.trim();
+  const filter = document.getElementById('fSubFilter').value.trim() || '日本';
+  if (!name || !url) return showToast('请填写名称和订阅地址', 'error');
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  isOperating = true;
+  try {
+    await runCommand('~/.lima-proxy/lima-proxy-switch.sh add-subscription ' + shellEscape(name) + ' ' + shellEscape(url) + ' --filter=' + shellEscape(filter) + ' 2>&1', 30000);
+    await loadConfig();
+    const newSub = config.subscriptions[config.subscriptions.length - 1];
+    if (newSub) await runCommand('~/.lima-proxy/lima-proxy-switch.sh import-subscription ' + shellEscape(newSub.id) + ' 2>&1', 60000);
+  } finally {
+    isOperating = false;
+  }
+  document.getElementById('fSubName').value = '';
+  document.getElementById('fSubUrl').value = '';
+  document.getElementById('fSubFilter').value = '日本';
+  toggleAddSubForm();
+  await loadConfig();
+  showToast('✅ 订阅已添加');
+}
+
+async function removeSubscription(subId, subName) {
+  if (isOperating || !confirm('删除订阅 "' + subName + '"？\n关联的节点也将被删除。')) return;
+  isOperating = true;
+  renderSubscriptions();
+  try {
+    await runCommand('~/.lima-proxy/lima-proxy-switch.sh remove-subscription ' + shellEscape(subId) + ' 2>&1', 30000);
+  } finally {
+    isOperating = false;
+  }
+  await loadConfig();
+  showToast('已删除订阅: ' + subName);
+}
+
+async function updateOneSubscription(subId) {
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  isOperating = true;
+  try {
+    const res = await runCommand('~/.lima-proxy/lima-proxy-switch.sh import-subscription ' + shellEscape(subId) + ' 2>&1', 60000);
+    if (res && res.includes('✅')) showToast('✅ 订阅更新成功');
+    else if (res && res.includes('❌')) showToast('订阅更新失败', 'error');
+  } finally {
+    isOperating = false;
+  }
+  await loadConfig();
+}
+
+async function updateAllSubscriptions() {
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  if (!config.subscriptions || config.subscriptions.length === 0) return showToast('暂无订阅', 'error');
+  isOperating = true;
+  const btn = document.getElementById('btnUpdateAllSub');
+  btn.disabled = true;
+  btn.textContent = '🔄 更新中...';
+  try {
+    const res = await runCommand('~/.lima-proxy/lima-proxy-switch.sh import-subscription 2>&1', 120000);
+    if (res && res.includes('✅')) showToast('✅ 全部订阅更新成功');
+    else if (res && res.includes('❌')) showToast('订阅更新失败', 'error');
+  } finally {
+    isOperating = false;
+    btn.disabled = false;
+    btn.textContent = '🔄 全部更新';
+  }
+  await loadConfig();
+}
+
+async function refreshStatus() {
+  if (isRefreshing || isOperating) return;
+  isRefreshing = true;
+  setBadge('检测中...', 'loading');
+  document.getElementById('btnRefreshStatus').disabled = true;
+  try {
+    await refreshBridgeHealth();
+    const result = await runCommand('~/.lima-proxy/lima-proxy-switch.sh status 2>&1', 25000);
+    if (result) parseStatus(result);
+  } finally {
+    isRefreshing = false;
+    document.getElementById('btnRefreshStatus').disabled = false;
+  }
+}
+
+function parseStatus(text) {
+  const get = (label) => {
+    const m = text.match(new RegExp(label + '\\s+(.+)'));
+    return m ? m[1].trim() : '-';
+  };
+  document.getElementById('sType').textContent = get('协议:');
+  document.getElementById('sServer').textContent = get('服务器:');
+  document.getElementById('sPort').textContent = get('端口:');
+  document.getElementById('sSni').textContent = get('SNI:');
+  document.getElementById('sFw').textContent = get('防火墙:');
+
+  if (text.includes('✅') && text.includes('HTTP')) {
+    setBadge('已连接', 'ok');
+    setTitleDot('var(--success)');
+  } else if (text.includes('❌') && text.includes('连接失败')) {
+    setBadge('不可用', 'err');
+    setTitleDot('var(--danger)');
+  } else if (text.includes('active')) {
+    setBadge('服务运行中', 'warn');
+    setTitleDot('var(--warning)');
+  }
+}
+
+async function testProxy() {
+  if (isOperating) return showToast('正在操作中，请稍候', 'warning');
+  setBadge('测试中...', 'loading');
+  const btn = document.getElementById('btnTest');
+  btn.disabled = true;
+  try {
+    const result = await runCommand('~/.lima-proxy/lima-proxy-switch.sh test 2>&1', 25000);
+    if (result && result.includes('✅')) {
+      setBadge('已连接', 'ok');
+      setTitleDot('var(--success)');
+    } else {
+      setBadge('不可用', 'err');
+      setTitleDot('var(--danger)');
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setBadge(text, type) {
+  const b = document.getElementById('statusBadge');
+  b.textContent = text;
+  b.className = 'badge badge-' + type;
+}
+function setTitleDot(color) { document.getElementById('titleDot').style.background = color; }
+function appendLog(text) {
+  const log = document.getElementById('logArea');
+  log.textContent += text + '\n';
+  const lines = log.textContent.split('\n');
+  if (lines.length > 500) log.textContent = lines.slice(-300).join('\n');
+  log.scrollTop = log.scrollHeight;
+}
+
+// ─── Mac Proxy Bridge Actions (带全局互斥锁，防连点冲突) ───
+async function runBridgeAction(btnId, busyText, idleText, cmd, okMsg, timeoutMs = 30000) {
+  if (isOperating) return showToast('正在执行其他操作，请稍候', 'warning');
+  isOperating = true;
+  const btn = document.getElementById(btnId);
+  btn.disabled = true;
+  btn.textContent = busyText;
+  try {
+    const res = await runCommand(cmd, timeoutMs);
+    if (res && res.includes('✅')) {
+      showToast(okMsg);
+    } else if (res && res.includes('⚠️')) {
+      showToast('操作完成，存在提示信息（见日志）', 'warning');
+    } else if (res && res.includes('❌')) {
+      showToast('操作失败，请查看日志', 'error');
+    }
+  } finally {
+    isOperating = false;
+    btn.disabled = false;
+    btn.textContent = idleText;
+  }
+  await refreshBridgeHealth();
+}
+
+function macProxyEnable() {
+  runBridgeAction('btnMacEnable', '⏳ 开启中...', '🔗 开启 Mac 全应用共享', '~/.lima-proxy/lima-bridge.sh on 2>&1', '✅ Mac 全应用共享已开启', 35000);
+}
+function macProxyDisable() {
+  runBridgeAction('btnMacDisable', '⏳ 关闭中...', '🛑 关闭共享', '~/.lima-proxy/lima-bridge.sh off 2>&1', '🛑 已关闭共享并切回直连', 20000);
+}
+function macProxyPanic() {
+  if (!confirm('🚨 确定彻底恢复物理网络直连？\n这会立即停止 launchd 守护、卸载 utun99 并清空所有代理设置。')) return;
+  runBridgeAction('btnMacPanic', '⏳ 恢复中...', '🚨 恢复直连', '~/.lima-proxy/lima-bridge.sh panic-reset 2>&1', '🚨 已 100% 恢复纯净直连', 20000);
+}
+async function macProxyReconnect() {
+  await runBridgeAction('btnMacReconnect', '⏳ 自愈中...', '⚡ 自愈重连', '~/.lima-proxy/lima-proxy-reconnect.sh 2>&1', '⚡ 节点重选与共享自愈完成', 60000);
+  await loadConfig();
+  await refreshStatus();
+}
+
+// ─── 防抖窗口同步（5秒节流，杜绝切窗口狂刷命令卡死）───
+function scheduleAutoRefresh() {
+  const now = Date.now();
+  if (isOperating || isRefreshing || now - lastAutoRefreshAt < 5000) return;
+  lastAutoRefreshAt = now;
+  loadConfig();
+  refreshBridgeHealth();
+}
+
+window.addEventListener('focus', scheduleAutoRefresh);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleAutoRefresh(); });
+
+// ─── Init ───
+loadConfig();
+refreshStatus();
+</script>
+</body>
+</html>

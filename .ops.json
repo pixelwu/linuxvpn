@@ -1,0 +1,37 @@
+{
+  "project": "vpnfix-lima-proxy",
+  "pull": [
+    {
+      "src": "~/.lima-proxy",
+      "dest": "lima-proxy",
+      "exclude": ["bin", "logs", "backups", "ruleset", "cache.db", "config.json", "LimaProxy", ".bridge.lock", ".config.lock*"]
+    },
+    {
+      "src": "~/.lima/mini-work/lima.yaml",
+      "dest": "lima.yaml"
+    },
+    {
+      "src": "~/Desktop/🚨紧急恢复Mac网络.command",
+      "dest": "🚨紧急恢复Mac网络.command"
+    }
+  ],
+  "logs": [
+    { "path": "~/.lima-proxy/logs/tunnel.log", "lines": 80 },
+    { "path": "~/.lima-proxy/logs/singbox-daemon.log", "lines": 80 },
+    { "path": "~/.lima-proxy/mac-singbox.log", "lines": 80 }
+  ],
+  "deploy_cmd": "bash ./v5/deploy_v5.sh",
+  "rollback_cmd": "bash ./v5/rollback_v5.sh",
+  "backup_dir": "~/.lima-proxy/backups",
+  "keep_backups": 3,
+  "capture_app": "Lima Proxy",
+  "agy_app": "Antigravity",
+  "agy_idle_seconds": 15,
+  "agy_focus_key": "l",
+  "verify_cmds": [
+    "~/.lima-proxy/lima-bridge.sh doctor",
+    "~/.lima-proxy/lima-bridge.sh status --json",
+    "scutil --proxy | grep -E '(HTTPEnable|HTTPPort|HTTPSEnable|HTTPSPort|ProxyAutoConfigEnable)' || true",
+    "ls -la ~/Library/LaunchAgents/com.user.lima-proxy-*.plist 2>/dev/null || true"
+  ]
+}

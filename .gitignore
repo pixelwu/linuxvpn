@@ -1,0 +1,11 @@
+# 临时现场快照、体检报告与独立维护的 ops-tool（绝不重复提交）
+.sync/
+snapshot/
+ops-tool/
+
+# 敏感配置与运行态数据
+config.json
+backups/
+*.log
+*.db
+.DS_Store
